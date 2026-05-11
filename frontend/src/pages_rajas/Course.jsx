@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PYTHON_URL } from '../redux/constants';
 import { useSelector } from 'react-redux';
 import { 
   List, 
@@ -99,7 +100,7 @@ const Course = ({ classId }) => {
       }));
 
       // Fetch articles
-      const articlesResponse = await fetch('http://localhost:5000/get-text-resources', {
+      const articlesResponse = await fetch(`${PYTHON_URL}/get-text-resources`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -115,7 +116,7 @@ const Course = ({ classId }) => {
       setArticles(articlesData.resources || []);
       
       // Fetch videos
-      const videosResponse = await fetch('http://localhost:5000/recommend-videos', {
+      const videosResponse = await fetch(`${PYTHON_URL}/recommend-videos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

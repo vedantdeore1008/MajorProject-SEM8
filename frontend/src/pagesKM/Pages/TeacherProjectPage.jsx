@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BASE_URL } from '../../redux/constants';
 import GitHubViewer from '../../New_pages/GithubRepo';
 import ProjectDocViewer from './ProjectDocViewer';
 import { motion } from 'framer-motion';
@@ -60,7 +61,7 @@ const TeacherProjectPage = ({ currentUser }) => {
 
   const fetchRequests = async () => {
     try {
-      const res = await fetch(`http://localhost:4000/api/projects/teacher-requests/${currentUser._id}`);
+      const res = await fetch(`${BASE_URL}/api/projects/teacher-requests/${currentUser._id}`);
       if (!res.ok) throw new Error('Failed to fetch requests');
       const data = await res.json();
       setRequests(data);
@@ -73,7 +74,7 @@ const TeacherProjectPage = ({ currentUser }) => {
 
   const handleRespond = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/projects/respond', {
+      const res = await fetch(`${BASE_URL}/api/projects/respond`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BASE_URL } from '../../redux/constants';
 import { 
   Box, 
   Typography, 
@@ -80,13 +81,13 @@ const StudentProjectPage = ({ currentUser }) => {
     const fetchData = async () => {
       try {
         // Fetch teachers
-        const teachersRes = await fetch('http://localhost:4000/api/projects/teachers');
+        const teachersRes = await fetch(`${BASE_URL}/api/projects/teachers`);
         if (!teachersRes.ok) throw new Error('Failed to fetch teachers');
         const teachersData = await teachersRes.json();
         setTeachers(teachersData);
         
         // Fetch projects
-        const projectsRes = await fetch(`http://localhost:4000/api/projects/student-projects/${currentUser._id}`);
+        const projectsRes = await fetch(`${BASE_URL}/api/projects/student-projects/${currentUser._id}`);
         if (!projectsRes.ok) throw new Error('Failed to fetch projects');
         const projectsData = await projectsRes.json();
         setProjects(projectsData);
@@ -126,7 +127,7 @@ const StudentProjectPage = ({ currentUser }) => {
         return;
       }
       
-      const res = await fetch('http://localhost:4000/api/projects/request', {
+      const res = await fetch(`${BASE_URL}/api/projects/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -4,9 +4,10 @@ import { useSelector } from 'react-redux';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { PYTHON_URL } from '../../redux/constants';
 
 const flaskApi = axios.create({
-  baseURL: 'http://localhost:5000',
+  baseURL: PYTHON_URL,
 });
 
 const FaceCapture = () => {

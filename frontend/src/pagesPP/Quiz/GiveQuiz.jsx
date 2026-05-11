@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { BASE_URL } from "../../redux/constants";
 import VideoAnalysis from "../Viva/VideoAnalysis.jsx";
 import {
   Box,
@@ -33,7 +34,7 @@ const GiveQuiz = () => {
     const fetchQuizData = async () => {
       try {
         response = await axios.get(
-          `http://localhost:4000/quiz/getquizbyquizid/${quizId}`
+          `${BASE_URL}/quiz/getquizbyquizid/${quizId}`
         );
         setQuizData(response.data);
         setTimeRemaining(response.data.duration * 60 * 1000); // Convert duration to milliseconds
@@ -106,7 +107,7 @@ const GiveQuiz = () => {
       };
 
       axios
-        .post("http://localhost:4000/quizresult/addquizresult", submissionData)
+        .post(`${BASE_URL}/quizresult/addquizresult`, submissionData)
         .then((response) => {
           console.log("Quiz result submitted successfully:", response.data);
         })

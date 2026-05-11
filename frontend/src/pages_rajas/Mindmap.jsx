@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { PYTHON_URL } from '../redux/constants';
 import { Markmap } from 'markmap-view';
 import { Transformer } from 'markmap-lib';
 import { Toolbar } from 'markmap-toolbar';
@@ -57,7 +58,7 @@ const Mindmap = () => {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:5000/mipmap', {
+      const response = await fetch(`${PYTHON_URL}/mipmap`, {
         method: 'POST',
         body: formData,
       });

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { PYTHON_URL } from '../../redux/constants'
 import {
   Box,
   Button,
@@ -115,7 +116,7 @@ const TimetableGeneratorPage = () => {
 
     try {
       const response = await axios.post(
-        'http://localhost:5000/schedule',
+        `${PYTHON_URL}/schedule`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       )

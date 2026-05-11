@@ -57,7 +57,7 @@ import {
   useSubmitAnswerMutation,
   useGetSubmissionsQuery,
 } from "../../redux/api/assignmentSlice";
-import { BASE_URL } from "../../redux/constants";
+import { BASE_URL, PYTHON_URL } from "../../redux/constants";
 import { useSelector } from "react-redux";
 import Lenis from "lenis";
 // const VisuallyHiddenInput = styled("input")({
@@ -156,7 +156,7 @@ const AssignmentPage = ({ classId }) => {
 
         try {
           // Call the /upload endpoint
-          const response = await fetch("http://localhost:5000/upload", {
+          const response = await fetch(`${PYTHON_URL}/upload`, {
             method: "POST",
             body: formData,
           });
@@ -371,7 +371,7 @@ const AssignmentPage = ({ classId }) => {
       console.log({ selectedFile: selectedFile });
       // Send to Flask backend
       const uploadResponse = await fetch(
-        "http://localhost:5000/get_student_score",
+        `${PYTHON_URL}/get_student_score`,
         {
           method: "POST",
           body: formData,

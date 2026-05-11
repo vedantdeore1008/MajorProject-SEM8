@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { PYTHON_URL } from '../redux/constants';
 import {
   TextField,
   Button,
@@ -34,7 +35,7 @@ const Research = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await axios.post('http://localhost:5000/research', { query });
+      const { data } = await axios.post(`${PYTHON_URL}/research`, { query });
       setResults(data);
     } catch (err) {
       setError(err.response?.data?.error || "Failed to fetch research data");

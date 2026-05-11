@@ -7,6 +7,7 @@ import CallEndIcon from "@mui/icons-material/CallEnd";
 import axios from "axios";
 import AlertAgreeDisagree from "./AlerttAgreeDisagree.jsx";
 import { useSelector } from "react-redux";
+import { PYTHON_URL } from "../../redux/constants";
 
 const API = import.meta.env.VITE_BACKEND_URL;
 
@@ -101,7 +102,7 @@ const Interview = () => {
   const speakText = async (text, rate = 0.95) => {
     try {
       // Make a POST request to the backend API
-      const response = await fetch("http://127.0.0.1:5000/generate_speech", {
+      const response = await fetch(`${PYTHON_URL}/generate_speech`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }), // Send the text to the backend

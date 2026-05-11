@@ -112,9 +112,9 @@ export default function Main(props) {
       <AppBar 
         position="static" 
         sx={{ 
-          backgroundColor: '#0f0f0f',
-          boxShadow: 'none',
-          borderBottom: '1px solid #222',
+          backgroundColor: '#fff',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+          borderBottom: '1px solid #e5e7eb',
         }}
       >
         <Toolbar sx={{ 
@@ -125,18 +125,18 @@ export default function Main(props) {
           <Typography
             variant="h5"
             sx={{
-              fontWeight: 'bold',
-              color: 'white',
-              fontFamily: 'Montserrat-Regular',
+              fontWeight: 800,
+              color: '#4361ee',
+              letterSpacing: -0.5,
             }}
           >
-            Kaizen.Edu
+            Viva<span style={{ color: '#1a1a2e' }}>AI</span>
           </Typography>
 
           {/* Centered Navigation */}
           <Box sx={{ 
             display: 'flex', 
-            gap: 2,
+            gap: 1.5,
             position: 'absolute',
             left: '50%',
             transform: 'translateX(-50%)'
@@ -145,12 +145,14 @@ export default function Main(props) {
               startIcon={<DashboardIcon />}
               onClick={() => router.navigate('/dashboard')}
               sx={{
-                color: 'white',
-                backgroundColor: '#1a1a1a',
-                borderRadius: '10px',
-                px: 3,
+                color: router.pathname === '/dashboard' ? '#4361ee' : '#6b7280',
+                backgroundColor: router.pathname === '/dashboard' ? '#e8edff' : 'transparent',
+                borderRadius: 2.5,
+                px: 2.5,
                 py: 1,
-                '&:hover': { backgroundColor: '#2a2a2a' },
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': { backgroundColor: '#f0f4ff', color: '#4361ee' },
               }}
             >
               Dashboard
@@ -160,12 +162,14 @@ export default function Main(props) {
               startIcon={<HomeIcon />}
               onClick={() => router.navigate('/class')}
               sx={{
-                color: 'white',
-                backgroundColor: '#1a1a1a',
-                borderRadius: '10px',
-                px: 3,
+                color: router.pathname === '/class' ? '#4361ee' : '#6b7280',
+                backgroundColor: router.pathname === '/class' ? '#e8edff' : 'transparent',
+                borderRadius: 2.5,
+                px: 2.5,
                 py: 1,
-                '&:hover': { backgroundColor: '#2a2a2a' },
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': { backgroundColor: '#f0f4ff', color: '#4361ee' },
               }}
             >
               Home
@@ -175,15 +179,17 @@ export default function Main(props) {
               startIcon={<AutoAwesome />}
               onClick={handleTeachingMenuOpen}
               sx={{
-                color: 'white',
-                backgroundColor: '#1a1a1a',
-                borderRadius: '10px',
-                px: 3,
+                color: '#6b7280',
+                backgroundColor: 'transparent',
+                borderRadius: 2.5,
+                px: 2.5,
                 py: 1,
-                '&:hover': { backgroundColor: '#2a2a2a' },
+                fontWeight: 600,
+                textTransform: 'none',
+                '&:hover': { backgroundColor: '#f0f4ff', color: '#4361ee' },
               }}
             >
-              AI Interview Feature
+              AI Interview
             </Button>
             <Menu
               anchorEl={teachingMenuAnchor}
@@ -210,12 +216,11 @@ export default function Main(props) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <IconButton
               onClick={handleUserMenuOpen}
-              sx={{ color: 'white' }}
             >
               <Avatar
                 alt={userInfo?.name}
                 src={userInfo?.profile_pic}
-                sx={{ width: 40, height: 40 }}
+                sx={{ width: 38, height: 38, border: '2px solid #e8edff' }}
               />
             </IconButton>
             <Menu
@@ -233,7 +238,7 @@ export default function Main(props) {
       </AppBar>
 
       {/* Main Content */}
-      <Box sx={{ flexGrow: 1, overflow: 'auto', paddingLeft:'2rem',paddingRight:'2rem', backgroundColor:'#D8DFE5' }}>
+      <Box sx={{ flexGrow: 1, overflow: 'auto', px: { xs: 1, md: 3 }, py: 1, backgroundColor: '#f8fafc' }}>
         <AppProvider
           session={session}
           router={router}

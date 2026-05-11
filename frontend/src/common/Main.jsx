@@ -1,7 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { extendTheme } from '@mui/material/styles';
-import { 
-  Typography, 
+import React, { useState } from 'react';
+import {
+  Typography,
   Box,
   Button,
   Avatar,
@@ -9,47 +8,34 @@ import {
   Menu,
   MenuItem,
   AppBar,
-  Toolbar
+  Toolbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Divider,
+  ListItemIcon,
+  ListItemText,
+  Snackbar,
+  Alert,
 } from '@mui/material';
-import { Person } from '@mui/icons-material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import { AutoAwesome } from '@mui/icons-material';
-import { Code } from '@mui/icons-material';
 import HomeIcon from '@mui/icons-material/Home';
-import LibraryBooksIcon from '@mui/icons-material/LibraryBooks';
-import SchoolIcon from '@mui/icons-material/School';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
-import GroupWorkIcon from '@mui/icons-material/GroupWork'; // New icon for projects
-import { AppProvider } from '@toolpad/core/AppProvider';
-import { DashboardLayout } from '@toolpad/core/DashboardLayout';
+import PersonIcon from '@mui/icons-material/Person';
+import EditIcon from '@mui/icons-material/Edit';
 import { useDispatch, useSelector } from 'react-redux';
 import axios from 'axios';
-import { logout } from '../redux/features/auth/authSlice';
+import { logout, setCredentials } from '../redux/features/auth/authSlice';
 import { useGetAllClassesQuery } from '../redux/api/classApiSlice';
 import DashboardPage from '../pagesKM/Pages/DashboardPage';
 import AllTeaching from '../pagesKM/Pages/AllTeaching';
 import CreateClass from '../pagesKM/Pages/CreateClass';
-import UsersPage from '../pagesKM/Pages/UsersPage';
-import TimetablePage from '../pagesKM/Pages/TimetablePage';
 import ClassPage from '../pagesKM/Pages/ClassPage';
-import StudentProjectPage from '../pagesKM/Pages/StudentProjectPage'; // Import student page
-import TeacherProjectPage from '../pagesKM/Pages/TeacherProjectPage'; // Import teacher page
 
 const API = import.meta.env.VITE_BACKEND_URL;
-
-const demoTheme = extendTheme({
-  colorSchemes: { light: true },
-  colorSchemeSelector: 'class',
-  breakpoints: {
-    values: {
-      xs: 0,
-      sm: 600,
-      md: 600,
-      lg: 1200,
-      xl: 1536,
-    },
-  },
-});
 
 function useDemoRouter(initialPath) {
   const [pathname, setPathname] = React.useState(initialPath);
@@ -60,133 +46,123 @@ function useDemoRouter(initialPath) {
       navigate: (path) => setPathname(String(path)),
     };
   }, [pathname]);
-
   return router;
 }
 
-export default function Main(props) {
+export default function Main() {
   const { userInfo } = useSelector((state) => state.user);
   const { data } = useGetAllClassesQuery(userInfo._id);
   const dispatch = useDispatch();
   const [teachingMenuAnchor, setTeachingMenuAnchor] = useState(null);
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState(userInfo?.name || '');
+  const [editEmail, setEditEmail] = useState(userInfo?.email || '');
+  const [editPic, setEditPic] = useState(userInfo?.profile_pic || '');
+  const [saving, setSaving] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
-  const router = useDemoRouter('/ai-interview');
-  const [session, setSession] = useState({
-    user: {
-      name: userInfo.name,
-      email: userInfo.email,
-      image: userInfo.profile_pic,
-    },
-  });
+  const router = useDemoRouter('/dashboard');
 
   const handleSignOut = async () => {
     try {
-      const URL = `${API}/user/logout-user`;
-      await axios.get(URL, { withCredentials: true });
+      await axios.get(`${API}/user/logout-user`, { withCredentials: true });
       dispatch(logout());
     } catch (error) {
       console.error('Logout error:', error);
+      dispatch(logout());
     }
   };
 
-  const handleTeachingMenuOpen = (event) => {
-    setTeachingMenuAnchor(event.currentTarget);
-  };
-
-  const handleTeachingMenuClose = () => {
-    setTeachingMenuAnchor(null);
-  };
-
-  const handleUserMenuOpen = (event) => {
-    setUserMenuAnchor(event.currentTarget);
-  };
-
-  const handleUserMenuClose = () => {
+  const handleEditProfile = () => {
+    setEditName(userInfo?.name || '');
+    setEditEmail(userInfo?.email || '');
+    setEditPic(userInfo?.profile_pic || '');
+    setEditOpen(true);
     setUserMenuAnchor(null);
   };
 
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const res = await axios.post(
+        `${API}/user/update-user`,
+        { name: editName, email: editEmail, profile_pic: editPic },
+        { withCredentials: true }
+      );
+      if (res.data?.data) {
+        dispatch(setCredentials(res.data.data));
+        setSnackbar({ open: true, message: 'Profile updated successfully', severity: 'success' });
+      }
+      setEditOpen(false);
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Failed to update profile', severity: 'error' });
+    }
+    setSaving(false);
+  };
+
+  const navItems = [
+    { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
+    { label: 'Home', icon: <HomeIcon />, path: '/class' },
+  ];
+
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      {/* Centered Navbar */}
-      <AppBar 
-        position="static" 
-        sx={{ 
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+      {/* Navbar */}
+      <AppBar
+        position="sticky"
+        elevation={0}
+        sx={{
           backgroundColor: '#fff',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-          borderBottom: '1px solid #e5e7eb',
+          borderBottom: '1px solid #e2e8f0',
         }}
       >
-        <Toolbar sx={{ 
-          justifyContent: 'space-between',
-          padding: '0.5rem 2rem'
-        }}>
-          {/* App Title - Left Side */}
+        <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 }, py: 0.5 }}>
+          {/* Brand */}
           <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 800,
-              color: '#4361ee',
-              letterSpacing: -0.5,
-            }}
+            variant="h6"
+            sx={{ fontWeight: 800, color: '#4361ee', letterSpacing: -0.5, cursor: 'pointer' }}
+            onClick={() => router.navigate('/dashboard')}
           >
-            Viva<span style={{ color: '#1a1a2e' }}>AI</span>
+            Viva<span style={{ color: '#1e293b' }}>AI</span>
           </Typography>
 
-          {/* Centered Navigation */}
-          <Box sx={{ 
-            display: 'flex', 
-            gap: 1.5,
-            position: 'absolute',
-            left: '50%',
-            transform: 'translateX(-50%)'
-          }}>
-            <Button
-              startIcon={<DashboardIcon />}
-              onClick={() => router.navigate('/dashboard')}
-              sx={{
-                color: router.pathname === '/dashboard' ? '#4361ee' : '#6b7280',
-                backgroundColor: router.pathname === '/dashboard' ? '#e8edff' : 'transparent',
-                borderRadius: 2.5,
-                px: 2.5,
-                py: 1,
-                fontWeight: 600,
-                textTransform: 'none',
-                '&:hover': { backgroundColor: '#f0f4ff', color: '#4361ee' },
-              }}
-            >
-              Dashboard
-            </Button>
-
-            <Button
-              startIcon={<HomeIcon />}
-              onClick={() => router.navigate('/class')}
-              sx={{
-                color: router.pathname === '/class' ? '#4361ee' : '#6b7280',
-                backgroundColor: router.pathname === '/class' ? '#e8edff' : 'transparent',
-                borderRadius: 2.5,
-                px: 2.5,
-                py: 1,
-                fontWeight: 600,
-                textTransform: 'none',
-                '&:hover': { backgroundColor: '#f0f4ff', color: '#4361ee' },
-              }}
-            >
-              Home
-            </Button>
+          {/* Center Nav */}
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+            {navItems.map((item) => (
+              <Button
+                key={item.path}
+                startIcon={item.icon}
+                onClick={() => router.navigate(item.path)}
+                sx={{
+                  color: router.pathname === item.path ? '#4361ee' : '#64748b',
+                  backgroundColor: router.pathname === item.path ? '#eef2ff' : 'transparent',
+                  borderRadius: 2,
+                  px: 2,
+                  py: 0.8,
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  textTransform: 'none',
+                  '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
+                }}
+              >
+                {item.label}
+              </Button>
+            ))}
 
             <Button
               startIcon={<AutoAwesome />}
-              onClick={handleTeachingMenuOpen}
+              onClick={(e) => setTeachingMenuAnchor(e.currentTarget)}
               sx={{
-                color: '#6b7280',
-                backgroundColor: 'transparent',
-                borderRadius: 2.5,
-                px: 2.5,
-                py: 1,
+                color: router.pathname?.startsWith('/class/') ? '#4361ee' : '#64748b',
+                backgroundColor: router.pathname?.startsWith('/class/') ? '#eef2ff' : 'transparent',
+                borderRadius: 2,
+                px: 2,
+                py: 0.8,
                 fontWeight: 600,
+                fontSize: '0.85rem',
                 textTransform: 'none',
-                '&:hover': { backgroundColor: '#f0f4ff', color: '#4361ee' },
+                '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
               }}
             >
               AI Interview
@@ -194,43 +170,65 @@ export default function Main(props) {
             <Menu
               anchorEl={teachingMenuAnchor}
               open={Boolean(teachingMenuAnchor)}
-              onClose={handleTeachingMenuClose}
+              onClose={() => setTeachingMenuAnchor(null)}
+              PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1 } }}
             >
               {data?.classes?.length ? data.classes.map((classItem) => (
-                <MenuItem 
+                <MenuItem
                   key={classItem._id}
                   onClick={() => {
                     router.navigate(`/class/${classItem._id}`);
-                    handleTeachingMenuClose();
+                    setTeachingMenuAnchor(null);
                   }}
+                  sx={{ fontSize: '0.875rem', py: 1.2 }}
                 >
                   {classItem.name}
                 </MenuItem>
               )) : (
-                <MenuItem disabled>No classes available</MenuItem>
+                <MenuItem disabled sx={{ fontSize: '0.875rem' }}>No classes available</MenuItem>
               )}
             </Menu>
           </Box>
 
-          {/* Right Side - User Profile and Sign Out */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton
-              onClick={handleUserMenuOpen}
-            >
+          {/* User Menu */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.2 }}>
+                {userInfo?.name}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#94a3b8', textTransform: 'capitalize' }}>
+                {userInfo?.role}
+              </Typography>
+            </Box>
+            <IconButton onClick={(e) => setUserMenuAnchor(e.currentTarget)} size="small">
               <Avatar
                 alt={userInfo?.name}
                 src={userInfo?.profile_pic}
-                sx={{ width: 38, height: 38, border: '2px solid #e8edff' }}
+                sx={{ width: 36, height: 36, border: '2px solid #eef2ff' }}
               />
             </IconButton>
             <Menu
               anchorEl={userMenuAnchor}
               open={Boolean(userMenuAnchor)}
-              onClose={handleUserMenuClose}
+              onClose={() => setUserMenuAnchor(null)}
+              PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1, minWidth: 180 } }}
             >
-              <MenuItem onClick={handleSignOut}>
-                <ExitToAppIcon sx={{ mr: 1 }} />
-                Sign Out
+              <Box sx={{ px: 2, py: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
+                  {userInfo?.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                  {userInfo?.email}
+                </Typography>
+              </Box>
+              <Divider sx={{ my: 0.5 }} />
+              <MenuItem onClick={handleEditProfile} sx={{ py: 1.2 }}>
+                <ListItemIcon><EditIcon fontSize="small" sx={{ color: '#64748b' }} /></ListItemIcon>
+                <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Edit Profile</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={handleSignOut} sx={{ py: 1.2 }}>
+                <ListItemIcon><ExitToAppIcon fontSize="small" sx={{ color: '#ef4444' }} /></ListItemIcon>
+                <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: '#ef4444' }}>Sign Out</ListItemText>
               </MenuItem>
             </Menu>
           </Box>
@@ -238,33 +236,109 @@ export default function Main(props) {
       </AppBar>
 
       {/* Main Content */}
-      <Box sx={{ flexGrow: 1, overflow: 'auto', px: { xs: 1, md: 3 }, py: 1, backgroundColor: '#f8fafc' }}>
-        <AppProvider
-          session={session}
-          router={router}
-          theme={demoTheme}
-        >
-          {router.pathname === '/ai-interview' && (
-            <Box sx={{ p: 4, textAlign: 'center' }}>
-              <Typography variant="h6">Select a class from AI Interview Feature</Typography>
-            </Box>
-          )}
-          {router.pathname === '/dashboard' && <DashboardPage />}
-          {router.pathname === '/class' && <AllTeaching navigate={router.navigate} />}
-          {router.pathname === '/createClass' && <CreateClass />}
-          {router.pathname === '/students' && <UsersPage />}
-          {router.pathname === '/timetable' && <TimetablePage />}
-          {router.pathname === '/projects' && (
-            userInfo?.role === 'teacher' ? 
-              <TeacherProjectPage currentUser={userInfo} /> : 
-              <StudentProjectPage currentUser={userInfo} />
-          )}
-          {router.pathname?.startsWith('/class/') && (
-            <ClassPage classId={router.pathname.split('/')[2]} />
-          )}
-          {router.pathname === '/expertise' && <ExpertisePage />}
-        </AppProvider>
+      <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+        {router.pathname === '/dashboard' && <DashboardPage />}
+        {router.pathname === '/class' && <AllTeaching navigate={router.navigate} />}
+        {router.pathname === '/createClass' && <CreateClass />}
+        {router.pathname?.startsWith('/class/') && (
+          <ClassPage classId={router.pathname.split('/')[2]} />
+        )}
       </Box>
+
+      {/* Edit Profile Dialog */}
+      <Dialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 700, color: '#1e293b', pb: 0 }}>
+          Edit Profile
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
+              <Avatar
+                src={editPic}
+                alt={editName}
+                sx={{ width: 64, height: 64, border: '3px solid #eef2ff' }}
+              />
+              <Box sx={{ flex: 1 }}>
+                <TextField
+                  label="Profile Picture URL"
+                  fullWidth
+                  size="small"
+                  value={editPic}
+                  onChange={(e) => setEditPic(e.target.value)}
+                  placeholder="https://example.com/photo.jpg"
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                />
+              </Box>
+            </Box>
+            <TextField
+              label="Full Name"
+              fullWidth
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+            />
+            <TextField
+              label="Email"
+              fullWidth
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+            />
+            <TextField
+              label="Role"
+              fullWidth
+              value={userInfo?.role || ''}
+              disabled
+              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button
+            onClick={() => setEditOpen(false)}
+            sx={{ borderRadius: 2, textTransform: 'none', color: '#64748b' }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveProfile}
+            variant="contained"
+            disabled={saving}
+            sx={{
+              borderRadius: 2,
+              textTransform: 'none',
+              backgroundColor: '#4361ee',
+              fontWeight: 600,
+              px: 3,
+              '&:hover': { backgroundColor: '#3730a3' },
+            }}
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ borderRadius: 2 }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

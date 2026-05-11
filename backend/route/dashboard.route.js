@@ -1,8 +1,9 @@
 import express from 'express'
 import { getDueDatesForStudent } from '../controler/dashboard/getduedates.js'
+import { getTeacherDashboard } from '../controler/dashboard/getTeacherDashboard.js'
 const router = express.Router();
- // Endpoint to get due dates for a student
 
 router.get("/getduedate/:studentId", getDueDatesForStudent)
+router.get("/teacher/:teacherId", getTeacherDashboard)
   
 export default router;

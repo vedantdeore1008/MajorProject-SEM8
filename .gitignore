@@ -1,0 +1,44 @@
+# Environment variables (sensitive API keys & secrets)
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build output
+dist/
+build/
+
+# ChromaDB data
+**/chroma_db*/
+
+# Uploaded files
+uploads/
+flask/uploads/
+backend/uploads/
+flask/temp/
+
+# Temp/generated files
+*.pdf
+flask/*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*

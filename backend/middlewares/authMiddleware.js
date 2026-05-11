@@ -11,7 +11,9 @@ const authenticate = asyncHandler(async (req, res, next) => {
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET_KEY)
-      req.user = await User.findById(decoded.userId).select('-password')
+      // Support both 'id' (login.controller) and 'userId' (legacy) JWT field names
+      const uid = decoded.userId || decoded.id
+      req.user = await User.findById(uid).select('-password')
       next()
     } catch (error) {
       res.status(401)

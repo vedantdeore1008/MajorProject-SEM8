@@ -56,6 +56,9 @@ const Interview = () => {
   const [teacherQuestionsReady, setTeacherQuestionsReady] = useState(false);
   const [resumeMessage, setResumeMessage] = useState("");
   const [vivaStatus, setVivaStatus] = useState("idle"); // idle | speaking | listening | processing | complete
+  const [audioPermission, setAudioPermission] = useState(null); // null | granted | denied
+  const [startingViva, setStartingViva] = useState(false);
+  const [fetchingQuestions, setFetchingQuestions] = useState(true);
 
   const { vivaId } = useParams();
   const { userInfo } = useSelector((state) => state.user);
@@ -197,7 +200,22 @@ const Interview = () => {
     });
   };
 
+  const checkAudioPermission = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      setAudioPermission('granted');
+      return true;
+    } catch {
+      setAudioPermission('denied');
+      return false;
+    }
+  };
+
+  useEffect(() => { checkAudioPermission(); }, []);
+
   const fetchQuestionSet = async () => {
+    setFetchingQuestions(true);
     try {
       const response = await axios.get(`${API}/viva/getOneViva/${vivaId}`, { params: { studentId: userInfo?._id } });
       const fetchedQuestions = response?.data?.questionAnswerSet || [];
@@ -225,6 +243,7 @@ const Interview = () => {
         setResumeMessage("Upload your resume PDF to get personalized questions.");
       }
     } catch (error) { console.error("Error Fetching viva:", error); }
+    finally { setFetchingQuestions(false); }
   };
 
   useEffect(() => { if (userInfo?._id) fetchQuestionSet(); }, [userInfo?._id]);
@@ -247,9 +266,13 @@ const Interview = () => {
 
   const startViva = async () => {
     if (!teacherQuestionsReady) { setResumeMessage("Please wait for the teacher to finalize your questions."); return; }
+    setStartingViva(true);
+    const hasAudio = await checkAudioPermission();
+    if (!hasAudio) { setStartingViva(false); return; }
     setCurrentDifficulty("easy");
     setAskedCounts({ easy: 0, medium: 0, hard: 0 });
     setAttemptsPerDifficulty({ easy: 0, medium: 0, hard: 0 });
+    setStartingViva(false);
     selectNextQuestion();
   };
 
@@ -431,8 +454,24 @@ const Interview = () => {
         </Box>
       )}
 
+      {/* Audio Permission Warning */}
+      {audioPermission === 'denied' && !started && (
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>Microphone access required</Typography>
+          <Typography variant="caption">Please allow microphone access in your browser settings and refresh the page. The interview needs audio to capture your answers.</Typography>
+        </Alert>
+      )}
+
+      {/* Loading Questions */}
+      {fetchingQuestions && (
+        <Paper sx={{ mb: 2, p: 3, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', textAlign: 'center' }}>
+          <CircularProgress size={28} sx={{ color: '#4361ee', mb: 1.5 }} />
+          <Typography variant="body2" sx={{ color: '#64748b', fontWeight: 500 }}>Loading interview data from server...</Typography>
+        </Paper>
+      )}
+
       {/* Resume Upload Section */}
-      {userInfo?.role === "student" && !started && (
+      {userInfo?.role === "student" && !started && !fetchingQuestions && (
         <Paper sx={{ mb: 2, p: 2.5, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
           <Alert severity={teacherQuestionsReady ? "success" : "info"} sx={{ mb: 2, borderRadius: 2 }}>
             {resumeMessage}
@@ -508,9 +547,9 @@ const Interview = () => {
             <Paper sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', p: 2.5 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
                 {!started ? (
-                  <Button variant="contained" onClick={startViva} startIcon={<PlayArrowIcon />} disabled={!teacherQuestionsReady}
+                  <Button variant="contained" onClick={startViva} startIcon={startingViva ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : <PlayArrowIcon />} disabled={!teacherQuestionsReady || audioPermission === 'denied' || startingViva || fetchingQuestions}
                     sx={{ backgroundColor: '#4361ee', borderRadius: 2, px: 3, py: 1.2, textTransform: 'none', fontWeight: 600, fontSize: '0.9rem', boxShadow: 'none', '&:hover': { backgroundColor: '#3730a3', boxShadow: 'none' } }}>
-                    Start Interview
+                    {startingViva ? 'Preparing...' : 'Start Interview'}
                   </Button>
                 ) : micOn ? (
                   <Button onClick={handleNextQuestion} variant="contained" startIcon={<MicIcon />}

@@ -27,6 +27,7 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5174',
   'https://major-project-sem-8.vercel.app',
+  'https://major-project-sem-8-ea1eikcua.vercel.app',
 ]
 
 connectDB()
@@ -35,8 +36,8 @@ const app = express()
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, etc.) and whitelisted origins
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin) { callback(null, true); return; }
+      if (allowedOrigins.includes(origin) || origin.match(/^https:\/\/major-project-sem-8.*\.vercel\.app$/)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));

@@ -78,61 +78,74 @@ const AllTeaching = ({ navigate }) => {
     );
   }
 
-  const ClassCard = ({ classItem, showJoin = false }) => (
-    <Card
-      onClick={!showJoin ? () => navigate(`/class/${classItem._id}`) : undefined}
-      sx={{
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        borderRadius: 3,
-        border: '1px solid #e2e8f0',
-        boxShadow: 'none',
-        cursor: !showJoin ? 'pointer' : 'default',
-        transition: 'all 0.2s',
-        '&:hover': !showJoin ? { borderColor: '#4361ee', boxShadow: '0 4px 16px rgba(67,97,238,0.08)', transform: 'translateY(-2px)' } : {},
-      }}
-    >
-      <CardContent sx={{ p: 2.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
-          <Avatar sx={{ width: 40, height: 40, backgroundColor: '#eef2ff', color: '#4361ee', borderRadius: 2 }}>
-            <ClassIcon sx={{ fontSize: 20 }} />
-          </Avatar>
-          {classItem.classCode && (
-            <Chip label={classItem.classCode} size="small" sx={{ fontSize: '0.7rem', fontWeight: 600, backgroundColor: '#f1f5f9', color: '#64748b' }} />
-          )}
-        </Box>
-        <Typography variant="body1" sx={{ fontWeight: 600, color: '#1e293b', mb: 0.5 }}>
-          {classItem?.name || 'Unnamed Class'}
-        </Typography>
-        <Typography variant="caption" sx={{ color: '#94a3b8', mb: 1.5 }}>
-          {classItem.subject || 'General'}
-        </Typography>
-        <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <PersonIcon sx={{ fontSize: 14, color: '#94a3b8' }} />
-            <Typography variant="caption" sx={{ color: '#64748b' }}>
-              {classItem.teacher?.name || 'Teacher'}
-            </Typography>
+  const ClassCard = ({ classItem, showJoin = false }) => {
+    const colors = ['#4361ee', '#6366f1', '#7c3aed', '#2563eb', '#0891b2', '#059669'];
+    const colorIdx = (classItem?.name?.charCodeAt(0) || 0) % colors.length;
+    const accent = colors[colorIdx];
+
+    return (
+      <Card
+        onClick={!showJoin ? () => navigate(`/class/${classItem._id}`) : undefined}
+        sx={{
+          height: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: 4,
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          cursor: !showJoin ? 'pointer' : 'default',
+          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          overflow: 'hidden',
+          '&:hover': {
+            borderColor: accent,
+            boxShadow: `0 8px 25px ${accent}18`,
+            transform: 'translateY(-4px)',
+          },
+        }}
+      >
+        <Box sx={{ height: 6, background: `linear-gradient(90deg, ${accent}, ${accent}88)` }} />
+        <CardContent sx={{ p: 2.5, flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+            <Avatar sx={{ width: 44, height: 44, backgroundColor: `${accent}12`, color: accent, borderRadius: 2.5, fontWeight: 700, fontSize: 18 }}>
+              {classItem?.name?.[0]?.toUpperCase() || 'C'}
+            </Avatar>
+            {classItem.classCode && (
+              <Chip label={classItem.classCode} size="small" sx={{ fontSize: '0.68rem', fontWeight: 600, backgroundColor: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0' }} />
+            )}
           </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <PeopleIcon sx={{ fontSize: 14, color: '#94a3b8' }} />
-            <Typography variant="caption" sx={{ color: '#64748b' }}>
-              {classItem.students?.length || 0}
-            </Typography>
+          <Typography variant="body1" sx={{ fontWeight: 700, color: '#1e293b', mb: 0.3, fontSize: '0.95rem', lineHeight: 1.3 }}>
+            {classItem?.name || 'Unnamed Class'}
+          </Typography>
+          <Typography variant="caption" sx={{ color: '#94a3b8', mb: 2, display: 'block' }}>
+            {classItem.subject || 'General'}
+          </Typography>
+          <Box sx={{ mt: 'auto', pt: 1.5, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <PersonIcon sx={{ fontSize: 15, color: accent }} />
+              <Typography variant="caption" sx={{ color: '#475569', fontWeight: 500 }}>
+                {classItem.teacher?.name || 'Teacher'}
+              </Typography>
+            </Box>
+            <Chip
+              icon={<PeopleIcon sx={{ fontSize: 13 }} />}
+              label={classItem.students?.length || 0}
+              size="small"
+              sx={{ height: 22, fontSize: '0.72rem', fontWeight: 600, backgroundColor: '#f8fafc', color: '#64748b', border: '1px solid #f1f5f9', '& .MuiChip-icon': { color: '#94a3b8' } }}
+            />
           </Box>
-        </Box>
-      </CardContent>
-      {showJoin && (
-        <Box sx={{ px: 2.5, pb: 2 }}>
-          <Button fullWidth variant="contained" onClick={() => handleJoinClass(classItem._id)} disabled={isJoining} size="small"
-            sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, backgroundColor: '#4361ee', boxShadow: 'none', '&:hover': { backgroundColor: '#3730a3', boxShadow: 'none' } }}>
-            {isJoining ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Join Class'}
-          </Button>
-        </Box>
-      )}
-    </Card>
-  );
+        </CardContent>
+        {showJoin && (
+          <Box sx={{ px: 2.5, pb: 2.5 }}>
+            <Button fullWidth variant="contained" onClick={() => handleJoinClass(classItem._id)} disabled={isJoining} size="small"
+              startIcon={!isJoining && <ArrowForwardIcon sx={{ fontSize: 16 }} />}
+              sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 600, py: 1, backgroundColor: accent, boxShadow: 'none', '&:hover': { backgroundColor: `${accent}dd`, boxShadow: `0 4px 12px ${accent}30` } }}>
+              {isJoining ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Join Class'}
+            </Button>
+          </Box>
+        )}
+      </Card>
+    );
+  };
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, minHeight: '100vh' }}>

@@ -158,13 +158,14 @@ Include real URLs from educational sites (MDN, GeeksForGeeks, W3Schools, YouTube
   return (
     <Box sx={{ mt: 3 }}>
       <Divider sx={{ mb: 2.5 }} />
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           <AutoAwesomeIcon sx={{ fontSize: 18, color: '#6366f1' }} />
           <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
             AI Study Agent
           </Typography>
-          <Chip label="Powered by Groq" size="small" sx={{ height: 18, fontSize: '0.6rem', backgroundColor: '#f1f5f9', color: '#64748b' }} />
+          <Chip label="LLaMA 3.3 70B" size="small" sx={{ height: 20, fontSize: '0.62rem', fontWeight: 700, backgroundColor: '#eef2ff', color: '#4361ee', border: '1px solid #c7d2fe' }} />
+          <Chip label="Groq" size="small" sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, backgroundColor: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0' }} />
         </Box>
         {agentState === 'idle' && (
           <Button size="small" variant="contained" onClick={runAgent} startIcon={<PsychologyIcon sx={{ fontSize: 16 }} />}

@@ -145,7 +145,7 @@ const StudentDashboard = ({ userInfo }) => {
           ...(dueDateRes?.data?.quizzes || []).map((item) => ({ ...item, type: 'Quiz' })),
           ...(dueDateRes?.data?.assignments || []).map((item) => ({ ...item, type: 'Assignment' })),
         ];
-        combined.sort((a, b) => new Date(a.duedate) - new Date(b.duedate));
+        combined.sort((a, b) => new Date(a.duedate || 0) - new Date(b.duedate || 0));
         const upcoming = combined.filter((d) => new Date(d.duedate) >= new Date());
         setDueDates(upcoming);
       } catch (err) {
@@ -173,7 +173,7 @@ const StudentDashboard = ({ userInfo }) => {
     ? Math.max(...vivaResults.map((r) => r.overallMark || 0))
     : 0;
 
-  const lineChartData = vivaResults.slice(0, 10).reverse().map((v) => ({
+  const lineChartData = [...vivaResults].slice(0, 10).reverse().map((v) => ({
     date: new Date(v.dateOfViva).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     score: v.overallMark || 0,
     name: v.vivaId?.vivaname || 'Viva',

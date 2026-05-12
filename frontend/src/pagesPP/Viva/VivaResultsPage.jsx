@@ -24,9 +24,38 @@ import LightbulbIcon from '@mui/icons-material/Lightbulb';
 import SchoolIcon from '@mui/icons-material/School';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import LinkIcon from '@mui/icons-material/Link';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
+import { saveResource } from './SavedResourcesPage';
 
 const API = import.meta.env.VITE_BACKEND_URL;
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
+
+const SaveAllButton = ({ resources, vivaName, insights }) => {
+  const [saved, setSaved] = useState(false);
+  const handleSaveAll = () => {
+    let count = 0;
+    (resources || []).forEach((res, idx) => {
+      const didSave = saveResource({ id: `res-${vivaName}-${idx}-${res.title?.substring(0, 10)}`, title: res.title, url: res.url, type: res.type || 'article', relevance: res.relevance, vivaName });
+      if (didSave) count++;
+    });
+    if (insights?.improvementPlan) {
+      insights.improvementPlan.forEach((item, idx) => {
+        saveResource({ id: `plan-${vivaName}-${idx}`, title: item.topic, type: 'insight', relevance: item.action, vivaName });
+      });
+    }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 3000);
+  };
+  return (
+    <Button size="small" variant={saved ? 'contained' : 'outlined'} onClick={handleSaveAll}
+      startIcon={saved ? <BookmarkAddedIcon sx={{ fontSize: 14 }} /> : <BookmarkIcon sx={{ fontSize: 14 }} />}
+      sx={{ borderRadius: 2, textTransform: 'none', fontSize: '0.7rem', fontWeight: 600,
+        ...(saved ? { backgroundColor: '#10b981', color: '#fff', '&:hover': { backgroundColor: '#059669' } } : { borderColor: '#e2e8f0', color: '#64748b', '&:hover': { borderColor: '#4361ee', color: '#4361ee' } }) }}>
+      {saved ? 'Saved!' : 'Save All'}
+    </Button>
+  );
+};
 
 // ─── AI AGENT COMPONENT ──────────────────────────────────────────────────────
 
@@ -273,25 +302,33 @@ Include real URLs from educational sites (MDN, GeeksForGeeks, W3Schools, YouTube
           {/* Resources */}
           {insights.resources?.length > 0 && (
             <Paper sx={{ p: 2, borderRadius: 2, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <LinkIcon sx={{ fontSize: 16, color: '#6366f1' }} />
-                <Typography variant="caption" sx={{ fontWeight: 600, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Study Resources</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <LinkIcon sx={{ fontSize: 16, color: '#6366f1' }} />
+                  <Typography variant="caption" sx={{ fontWeight: 600, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Study Resources</Typography>
+                </Box>
+                <SaveAllButton resources={insights.resources} vivaName={result.vivaId?.vivaname} insights={insights} />
               </Box>
               <Stack spacing={1}>
                 {insights.resources.map((res, idx) => (
-                  <Box key={idx} component="a" href={res.url} target="_blank" rel="noopener noreferrer"
-                    sx={{ display: 'flex', gap: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', textDecoration: 'none', transition: 'all 0.15s', '&:hover': { borderColor: '#c7d2fe', backgroundColor: '#eef2ff' } }}>
-                    <Avatar sx={{ width: 28, height: 28, fontSize: 11, backgroundColor: res.type === 'video' ? '#fef2f2' : '#eef2ff', color: res.type === 'video' ? '#dc2626' : '#4361ee' }}>
-                      {res.type === 'video' ? '▶' : '📄'}
-                    </Avatar>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600, color: '#4361ee', fontSize: '0.82rem' }}>
-                        {res.title}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#64748b' }}>
-                        {res.relevance}
-                      </Typography>
+                  <Box key={idx} sx={{ display: 'flex', gap: 1.5, p: 1.5, borderRadius: 1.5, backgroundColor: '#f8fafc', border: '1px solid #f1f5f9', transition: 'all 0.15s', '&:hover': { borderColor: '#c7d2fe', backgroundColor: '#eef2ff' } }}>
+                    <Box component="a" href={res.url} target="_blank" rel="noopener noreferrer" sx={{ display: 'flex', gap: 1.5, flex: 1, textDecoration: 'none' }}>
+                      <Avatar sx={{ width: 28, height: 28, fontSize: 11, backgroundColor: res.type === 'video' ? '#fef2f2' : '#eef2ff', color: res.type === 'video' ? '#dc2626' : '#4361ee' }}>
+                        {res.type === 'video' ? '▶' : '📄'}
+                      </Avatar>
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#4361ee', fontSize: '0.82rem' }}>
+                          {res.title}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: '#64748b' }}>
+                          {res.relevance}
+                        </Typography>
+                      </Box>
                     </Box>
+                    <IconButton size="small" onClick={() => { saveResource({ id: `res-${Date.now()}-${idx}`, title: res.title, url: res.url, type: res.type || 'article', relevance: res.relevance, vivaName: result.vivaId?.vivaname }); }}
+                      sx={{ color: '#94a3b8', '&:hover': { color: '#4361ee' } }}>
+                      <BookmarkIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
                   </Box>
                 ))}
               </Stack>

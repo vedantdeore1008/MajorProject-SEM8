@@ -1,33 +1,20 @@
 import React, { useState, Suspense, lazy } from 'react';
 import {
-  Typography,
-  Box,
-  Button,
-  Avatar,
-  IconButton,
-  Menu,
-  MenuItem,
-  AppBar,
-  Toolbar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Divider,
-  ListItemIcon,
-  ListItemText,
-  Snackbar,
-  Alert,
-  CircularProgress,
+  Typography, Box, Button, Avatar, IconButton, Menu, MenuItem, AppBar, Toolbar,
+  Dialog, DialogTitle, DialogContent, DialogActions, TextField, Divider,
+  ListItemIcon, ListItemText, Snackbar, Alert, CircularProgress,
+  Drawer, List, ListItemButton, useMediaQuery, useTheme,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import HomeIcon from '@mui/icons-material/Home';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
-import PersonIcon from '@mui/icons-material/Person';
 import EditIcon from '@mui/icons-material/Edit';
 import AssessmentIcon from '@mui/icons-material/Assessment';
+import MenuIcon from '@mui/icons-material/Menu';
+import CloseIcon from '@mui/icons-material/Close';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate as useRouterNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -40,16 +27,16 @@ import ClassPage from '../pagesKM/Pages/ClassPage';
 const DashboardPage = lazy(() => import('../pagesKM/Pages/DashboardPage'));
 
 const API = import.meta.env.VITE_BACKEND_URL;
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_UPLOAD_PRESET;
 
 function useDemoRouter(initialPath) {
   const [pathname, setPathname] = React.useState(initialPath);
-  const router = React.useMemo(() => {
-    return {
-      pathname,
-      searchParams: new URLSearchParams(),
-      navigate: (path) => setPathname(String(path)),
-    };
-  }, [pathname]);
+  const router = React.useMemo(() => ({
+    pathname,
+    searchParams: new URLSearchParams(),
+    navigate: (path) => setPathname(String(path)),
+  }), [pathname]);
   return router;
 }
 
@@ -57,23 +44,28 @@ export default function Main() {
   const { userInfo } = useSelector((state) => state.user);
   const { data } = useGetAllClassesQuery(userInfo?._id, { skip: !userInfo?._id });
   const dispatch = useDispatch();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [teachingMenuAnchor, setTeachingMenuAnchor] = useState(null);
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState(userInfo?.name || '');
   const [editEmail, setEditEmail] = useState(userInfo?.email || '');
   const [editPic, setEditPic] = useState(userInfo?.profile_pic || '');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
 
   const router = useDemoRouter('/dashboard');
+  const routerNavigate = useRouterNavigate();
 
   const handleSignOut = async () => {
     try {
       await axios.get(`${API}/user/logout-user`, { withCredentials: true });
       dispatch(logout());
     } catch (error) {
-      console.error('Logout error:', error);
       dispatch(logout());
     }
   };
@@ -84,6 +76,26 @@ export default function Main() {
     setEditPic(userInfo?.profile_pic || '');
     setEditOpen(true);
     setUserMenuAnchor(null);
+  };
+
+  const handleUploadPic = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', UPLOAD_PRESET || 'ChitChat-app-file');
+      formData.append('cloud_name', CLOUD_NAME || 'dxor5y4pf');
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME || 'dxor5y4pf'}/image/upload`, {
+        method: 'POST', body: formData,
+      });
+      const data = await res.json();
+      if (data.secure_url) setEditPic(data.secure_url);
+    } catch (err) {
+      setSnackbar({ open: true, message: 'Image upload failed', severity: 'error' });
+    }
+    setUploading(false);
   };
 
   const handleSaveProfile = async () => {
@@ -105,147 +117,103 @@ export default function Main() {
     setSaving(false);
   };
 
-  const routerNavigate = useRouterNavigate();
-
   const navItems = [
-    { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { label: 'Home', icon: <HomeIcon />, path: '/class' },
+    { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', action: () => router.navigate('/dashboard') },
+    { label: 'Classes', icon: <HomeIcon />, path: '/class', action: () => router.navigate('/class') },
   ];
+
+  const handleNavClick = (action) => {
+    action();
+    setMobileOpen(false);
+  };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
-      {/* Navbar */}
-      <AppBar
-        position="sticky"
-        elevation={0}
-        sx={{
-          backgroundColor: '#fff',
-          borderBottom: '1px solid #e2e8f0',
-        }}
-      >
-        <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 2, md: 4 }, py: 0.5 }}>
-          {/* Brand */}
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 800, color: '#4361ee', letterSpacing: -0.5, cursor: 'pointer' }}
-            onClick={() => router.navigate('/dashboard')}
-          >
-            Viva<span style={{ color: '#1e293b' }}>AI</span>
-          </Typography>
-
-          {/* Center Nav */}
-          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
-            {navItems.map((item) => (
-              <Button
-                key={item.path}
-                startIcon={item.icon}
-                onClick={() => router.navigate(item.path)}
-                sx={{
-                  color: router.pathname === item.path ? '#4361ee' : '#64748b',
-                  backgroundColor: router.pathname === item.path ? '#eef2ff' : 'transparent',
-                  borderRadius: 2,
-                  px: 2,
-                  py: 0.8,
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  textTransform: 'none',
-                  '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
-                }}
-              >
-                {item.label}
-              </Button>
-            ))}
-
-            <Button
-              startIcon={<AutoAwesomeIcon />}
-              onClick={(e) => setTeachingMenuAnchor(e.currentTarget)}
-              sx={{
-                color: router.pathname?.startsWith('/class/') ? '#4361ee' : '#64748b',
-                backgroundColor: router.pathname?.startsWith('/class/') ? '#eef2ff' : 'transparent',
-                borderRadius: 2,
-                px: 2,
-                py: 0.8,
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                textTransform: 'none',
-                '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
-              }}
-            >
-              AI Interview
-            </Button>
-            {userInfo?.role === 'student' && (
-              <Button
-                startIcon={<AssessmentIcon />}
-                onClick={() => routerNavigate('/viva-results')}
-                sx={{
-                  color: '#64748b',
-                  backgroundColor: 'transparent',
-                  borderRadius: 2,
-                  px: 2,
-                  py: 0.8,
-                  fontWeight: 600,
-                  fontSize: '0.85rem',
-                  textTransform: 'none',
-                  '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
-                }}
-              >
-                My Results
-              </Button>
+      <AppBar position="sticky" elevation={0} sx={{ backgroundColor: '#fff', borderBottom: '1px solid #e2e8f0' }}>
+        <Toolbar sx={{ justifyContent: 'space-between', px: { xs: 1.5, md: 4 }, py: 0.5 }}>
+          {/* Left: Brand + Hamburger on mobile */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {isMobile && (
+              <IconButton onClick={() => setMobileOpen(true)} sx={{ color: '#1e293b' }}>
+                <MenuIcon />
+              </IconButton>
             )}
-
-            <Menu
-              anchorEl={teachingMenuAnchor}
-              open={Boolean(teachingMenuAnchor)}
-              onClose={() => setTeachingMenuAnchor(null)}
-              PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1 } }}
+            <Typography
+              variant="h6"
+              sx={{ fontWeight: 800, color: '#4361ee', letterSpacing: -0.5, cursor: 'pointer', fontSize: { xs: '1.1rem', md: '1.25rem' } }}
+              onClick={() => router.navigate('/dashboard')}
             >
-              {data?.classes?.length ? data.classes.map((classItem) => (
-                <MenuItem
-                  key={classItem._id}
-                  onClick={() => {
-                    router.navigate(`/class/${classItem._id}`);
-                    setTeachingMenuAnchor(null);
-                  }}
-                  sx={{ fontSize: '0.875rem', py: 1.2 }}
-                >
-                  {classItem.name}
-                </MenuItem>
-              )) : (
-                <MenuItem disabled sx={{ fontSize: '0.875rem' }}>No classes available</MenuItem>
-              )}
-            </Menu>
+              Viva<span style={{ color: '#1e293b' }}>AI</span>
+            </Typography>
           </Box>
 
-          {/* User Menu */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {/* Center Nav - hidden on mobile */}
+          {!isMobile && (
+            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+              {navItems.map((item) => (
+                <Button
+                  key={item.path}
+                  startIcon={item.icon}
+                  onClick={item.action}
+                  sx={{
+                    color: router.pathname === item.path ? '#4361ee' : '#64748b',
+                    backgroundColor: router.pathname === item.path ? '#eef2ff' : 'transparent',
+                    borderRadius: 2, px: 2, py: 0.8, fontWeight: 600, fontSize: '0.85rem', textTransform: 'none',
+                    '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
+                  }}
+                >
+                  {item.label}
+                </Button>
+              ))}
+              <Button
+                startIcon={<AutoAwesomeIcon />}
+                onClick={(e) => setTeachingMenuAnchor(e.currentTarget)}
+                sx={{
+                  color: router.pathname?.startsWith('/class/') ? '#4361ee' : '#64748b',
+                  backgroundColor: router.pathname?.startsWith('/class/') ? '#eef2ff' : 'transparent',
+                  borderRadius: 2, px: 2, py: 0.8, fontWeight: 600, fontSize: '0.85rem', textTransform: 'none',
+                  '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
+                }}
+              >
+                AI Interview
+              </Button>
+              {userInfo?.role === 'student' && (
+                <>
+                  <Button startIcon={<AssessmentIcon />} onClick={() => routerNavigate('/viva-results')}
+                    sx={{ color: '#64748b', borderRadius: 2, px: 2, py: 0.8, fontWeight: 600, fontSize: '0.85rem', textTransform: 'none', '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' } }}>
+                    My Results
+                  </Button>
+                  <Button startIcon={<BookmarkIcon />} onClick={() => routerNavigate('/saved-resources')}
+                    sx={{ color: '#64748b', borderRadius: 2, px: 2, py: 0.8, fontWeight: 600, fontSize: '0.85rem', textTransform: 'none', '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' } }}>
+                    Saved
+                  </Button>
+                </>
+              )}
+              <Menu anchorEl={teachingMenuAnchor} open={Boolean(teachingMenuAnchor)} onClose={() => setTeachingMenuAnchor(null)}
+                PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1 } }}>
+                {data?.classes?.length ? data.classes.map((classItem) => (
+                  <MenuItem key={classItem._id} onClick={() => { router.navigate(`/class/${classItem._id}`); setTeachingMenuAnchor(null); }} sx={{ fontSize: '0.875rem', py: 1.2 }}>
+                    {classItem.name}
+                  </MenuItem>
+                )) : <MenuItem disabled sx={{ fontSize: '0.875rem' }}>No classes available</MenuItem>}
+              </Menu>
+            </Box>
+          )}
+
+          {/* Right: User */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.2 }}>
-                {userInfo?.name}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#94a3b8', textTransform: 'capitalize' }}>
-                {userInfo?.role}
-              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b', lineHeight: 1.2 }}>{userInfo?.name}</Typography>
+              <Typography variant="caption" sx={{ color: '#94a3b8', textTransform: 'capitalize' }}>{userInfo?.role}</Typography>
             </Box>
             <IconButton onClick={(e) => setUserMenuAnchor(e.currentTarget)} size="small">
-              <Avatar
-                alt={userInfo?.name}
-                src={userInfo?.profile_pic}
-                sx={{ width: 36, height: 36, border: '2px solid #eef2ff' }}
-              />
+              <Avatar alt={userInfo?.name} src={userInfo?.profile_pic} sx={{ width: 36, height: 36, border: '2px solid #eef2ff' }} />
             </IconButton>
-            <Menu
-              anchorEl={userMenuAnchor}
-              open={Boolean(userMenuAnchor)}
-              onClose={() => setUserMenuAnchor(null)}
-              PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1, minWidth: 180 } }}
-            >
+            <Menu anchorEl={userMenuAnchor} open={Boolean(userMenuAnchor)} onClose={() => setUserMenuAnchor(null)}
+              PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1, minWidth: 180 } }}>
               <Box sx={{ px: 2, py: 1.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
-                  {userInfo?.name}
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                  {userInfo?.email}
-                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{userInfo?.name}</Typography>
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>{userInfo?.email}</Typography>
               </Box>
               <Divider sx={{ my: 0.5 }} />
               <MenuItem onClick={handleEditProfile} sx={{ py: 1.2 }}>
@@ -260,6 +228,52 @@ export default function Main() {
           </Box>
         </Toolbar>
       </AppBar>
+
+      {/* Mobile Drawer */}
+      <Drawer anchor="left" open={mobileOpen} onClose={() => setMobileOpen(false)}
+        PaperProps={{ sx: { width: 280, borderRadius: '0 16px 16px 0' } }}>
+        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6" sx={{ fontWeight: 800, color: '#4361ee' }}>Viva<span style={{ color: '#1e293b' }}>AI</span></Typography>
+          <IconButton onClick={() => setMobileOpen(false)}><CloseIcon /></IconButton>
+        </Box>
+        <Divider />
+        <List sx={{ px: 1, pt: 1 }}>
+          {navItems.map((item) => (
+            <ListItemButton key={item.path} onClick={() => handleNavClick(item.action)}
+              sx={{ borderRadius: 2, mb: 0.5, backgroundColor: router.pathname === item.path ? '#eef2ff' : 'transparent', color: router.pathname === item.path ? '#4361ee' : '#475569' }}>
+              <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
+            </ListItemButton>
+          ))}
+          <ListItemButton onClick={() => { setTeachingMenuAnchor(null); setMobileOpen(false); router.navigate('/class'); }}
+            sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
+            <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><AutoAwesomeIcon /></ListItemIcon>
+            <ListItemText primary="AI Interview" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
+          </ListItemButton>
+          {userInfo?.role === 'student' && (
+            <>
+              <ListItemButton onClick={() => { routerNavigate('/viva-results'); setMobileOpen(false); }} sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
+                <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><AssessmentIcon /></ListItemIcon>
+                <ListItemText primary="My Results" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
+              </ListItemButton>
+              <ListItemButton onClick={() => { routerNavigate('/saved-resources'); setMobileOpen(false); }} sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
+                <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><BookmarkIcon /></ListItemIcon>
+                <ListItemText primary="Saved Resources" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
+              </ListItemButton>
+            </>
+          )}
+        </List>
+        <Box sx={{ mt: 'auto', p: 2 }}>
+          <Divider sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar src={userInfo?.profile_pic} sx={{ width: 36, height: 36 }} />
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{userInfo?.name}</Typography>
+              <Typography variant="caption" sx={{ color: '#94a3b8', textTransform: 'capitalize' }}>{userInfo?.role}</Typography>
+            </Box>
+          </Box>
+        </Box>
+      </Drawer>
 
       {/* Main Content */}
       <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
@@ -276,98 +290,47 @@ export default function Main() {
       </Box>
 
       {/* Edit Profile Dialog */}
-      <Dialog
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
-      >
-        <DialogTitle sx={{ fontWeight: 700, color: '#1e293b', pb: 0 }}>
-          Edit Profile
-        </DialogTitle>
+      <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
+        <DialogTitle sx={{ fontWeight: 700, color: '#1e293b', pb: 0 }}>Edit Profile</DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mt: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-              <Avatar
-                src={editPic}
-                alt={editName}
-                sx={{ width: 64, height: 64, border: '3px solid #eef2ff' }}
-              />
-              <Box sx={{ flex: 1 }}>
-                <TextField
-                  label="Profile Picture URL"
-                  fullWidth
-                  size="small"
-                  value={editPic}
-                  onChange={(e) => setEditPic(e.target.value)}
-                  placeholder="https://example.com/photo.jpg"
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-                />
+            {/* Profile Picture Section */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, mb: 1 }}>
+              <Box sx={{ position: 'relative' }}>
+                <Avatar src={editPic} alt={editName} sx={{ width: 80, height: 80, border: '3px solid #eef2ff' }} />
+                {uploading && (
+                  <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: '50%' }}>
+                    <CircularProgress size={24} sx={{ color: '#4361ee' }} />
+                  </Box>
+                )}
+              </Box>
+              <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Button variant="outlined" component="label" startIcon={<CloudUploadIcon />} size="small" disabled={uploading}
+                  sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, borderColor: '#e2e8f0', color: '#4361ee', '&:hover': { borderColor: '#4361ee', backgroundColor: '#eef2ff' } }}>
+                  Upload Photo
+                  <input type="file" hidden accept="image/*" onChange={handleUploadPic} />
+                </Button>
+                <Typography variant="caption" sx={{ color: '#94a3b8' }}>JPG, PNG up to 5MB</Typography>
               </Box>
             </Box>
-            <TextField
-              label="Full Name"
-              fullWidth
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            />
-            <TextField
-              label="Email"
-              fullWidth
-              value={editEmail}
-              onChange={(e) => setEditEmail(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            />
-            <TextField
-              label="Role"
-              fullWidth
-              value={userInfo?.role || ''}
-              disabled
-              sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
-            />
+            <TextField label="Or paste image URL" fullWidth size="small" value={editPic} onChange={(e) => setEditPic(e.target.value)}
+              placeholder="https://example.com/photo.jpg" sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+            <TextField label="Full Name" fullWidth value={editName} onChange={(e) => setEditName(e.target.value)} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+            <TextField label="Email" fullWidth value={editEmail} onChange={(e) => setEditEmail(e.target.value)} sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+            <TextField label="Role" fullWidth value={userInfo?.role || ''} disabled sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button
-            onClick={() => setEditOpen(false)}
-            sx={{ borderRadius: 2, textTransform: 'none', color: '#64748b' }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveProfile}
-            variant="contained"
-            disabled={saving}
-            sx={{
-              borderRadius: 2,
-              textTransform: 'none',
-              backgroundColor: '#4361ee',
-              fontWeight: 600,
-              px: 3,
-              '&:hover': { backgroundColor: '#3730a3' },
-            }}
-          >
+          <Button onClick={() => setEditOpen(false)} sx={{ borderRadius: 2, textTransform: 'none', color: '#64748b' }}>Cancel</Button>
+          <Button onClick={handleSaveProfile} variant="contained" disabled={saving}
+            sx={{ borderRadius: 2, textTransform: 'none', backgroundColor: '#4361ee', fontWeight: 600, px: 3, '&:hover': { backgroundColor: '#3730a3' } }}>
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Snackbar */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity={snackbar.severity}
-          sx={{ borderRadius: 2 }}
-        >
-          {snackbar.message}
-        </Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={4000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ borderRadius: 2 }}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );

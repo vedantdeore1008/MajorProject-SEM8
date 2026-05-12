@@ -178,16 +178,10 @@ export default function Main() {
                 AI Interview
               </Button>
               {userInfo?.role === 'student' && (
-                <>
-                  <Button startIcon={<AssessmentIcon />} onClick={() => routerNavigate('/viva-results')}
-                    sx={{ color: '#64748b', borderRadius: 2, px: 2, py: 0.8, fontWeight: 600, fontSize: '0.85rem', textTransform: 'none', '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' } }}>
-                    My Results
-                  </Button>
-                  <Button startIcon={<BookmarkIcon />} onClick={() => routerNavigate('/saved-resources')}
-                    sx={{ color: '#64748b', borderRadius: 2, px: 2, py: 0.8, fontWeight: 600, fontSize: '0.85rem', textTransform: 'none', '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' } }}>
-                    Saved
-                  </Button>
-                </>
+                <Button startIcon={<AssessmentIcon />} onClick={() => routerNavigate('/viva-results')}
+                  sx={{ color: '#64748b', borderRadius: 2, px: 2, py: 0.8, fontWeight: 600, fontSize: '0.85rem', textTransform: 'none', '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' } }}>
+                  My Results
+                </Button>
               )}
               <Menu anchorEl={teachingMenuAnchor} open={Boolean(teachingMenuAnchor)} onClose={() => setTeachingMenuAnchor(null)}
                 PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1 } }}>
@@ -220,6 +214,13 @@ export default function Main() {
                 <ListItemIcon><EditIcon fontSize="small" sx={{ color: '#64748b' }} /></ListItemIcon>
                 <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Edit Profile</ListItemText>
               </MenuItem>
+              {userInfo?.role === 'student' && (
+                <MenuItem onClick={() => { routerNavigate('/saved-resources'); setUserMenuAnchor(null); }} sx={{ py: 1.2 }}>
+                  <ListItemIcon><BookmarkIcon fontSize="small" sx={{ color: '#6366f1' }} /></ListItemIcon>
+                  <ListItemText primaryTypographyProps={{ fontSize: '0.875rem' }}>Saved Resources</ListItemText>
+                </MenuItem>
+              )}
+              <Divider sx={{ my: 0.5 }} />
               <MenuItem onClick={handleSignOut} sx={{ py: 1.2 }}>
                 <ListItemIcon><ExitToAppIcon fontSize="small" sx={{ color: '#ef4444' }} /></ListItemIcon>
                 <ListItemText primaryTypographyProps={{ fontSize: '0.875rem', color: '#ef4444' }}>Sign Out</ListItemText>
@@ -251,16 +252,10 @@ export default function Main() {
             <ListItemText primary="AI Interview" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
           </ListItemButton>
           {userInfo?.role === 'student' && (
-            <>
-              <ListItemButton onClick={() => { routerNavigate('/viva-results'); setMobileOpen(false); }} sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
-                <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><AssessmentIcon /></ListItemIcon>
-                <ListItemText primary="My Results" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
-              </ListItemButton>
-              <ListItemButton onClick={() => { routerNavigate('/saved-resources'); setMobileOpen(false); }} sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
-                <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><BookmarkIcon /></ListItemIcon>
-                <ListItemText primary="Saved Resources" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
-              </ListItemButton>
-            </>
+            <ListItemButton onClick={() => { routerNavigate('/viva-results'); setMobileOpen(false); }} sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
+              <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><AssessmentIcon /></ListItemIcon>
+              <ListItemText primary="My Results" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
+            </ListItemButton>
           )}
         </List>
         <Box sx={{ mt: 'auto', p: 2 }}>

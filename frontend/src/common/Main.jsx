@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import {
   Typography,
   Box,
@@ -19,9 +19,10 @@ import {
   ListItemText,
   Snackbar,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import { AutoAwesome } from '@mui/icons-material';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import HomeIcon from '@mui/icons-material/Home';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import PersonIcon from '@mui/icons-material/Person';
@@ -32,10 +33,11 @@ import { useNavigate as useRouterNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { logout, setCredentials } from '../redux/features/auth/authSlice';
 import { useGetAllClassesQuery } from '../redux/api/classApiSlice';
-import DashboardPage from '../pagesKM/Pages/DashboardPage';
 import AllTeaching from '../pagesKM/Pages/AllTeaching';
 import CreateClass from '../pagesKM/Pages/CreateClass';
 import ClassPage from '../pagesKM/Pages/ClassPage';
+
+const DashboardPage = lazy(() => import('../pagesKM/Pages/DashboardPage'));
 
 const API = import.meta.env.VITE_BACKEND_URL;
 
@@ -53,7 +55,7 @@ function useDemoRouter(initialPath) {
 
 export default function Main() {
   const { userInfo } = useSelector((state) => state.user);
-  const { data } = useGetAllClassesQuery(userInfo._id);
+  const { data } = useGetAllClassesQuery(userInfo?._id, { skip: !userInfo?._id });
   const dispatch = useDispatch();
   const [teachingMenuAnchor, setTeachingMenuAnchor] = useState(null);
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
@@ -155,7 +157,7 @@ export default function Main() {
             ))}
 
             <Button
-              startIcon={<AutoAwesome />}
+              startIcon={<AutoAwesomeIcon />}
               onClick={(e) => setTeachingMenuAnchor(e.currentTarget)}
               sx={{
                 color: router.pathname?.startsWith('/class/') ? '#4361ee' : '#64748b',
@@ -261,7 +263,11 @@ export default function Main() {
 
       {/* Main Content */}
       <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-        {router.pathname === '/dashboard' && <DashboardPage />}
+        {router.pathname === '/dashboard' && (
+          <Suspense fallback={<Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh"><CircularProgress sx={{ color: '#4361ee' }} /></Box>}>
+            <DashboardPage />
+          </Suspense>
+        )}
         {router.pathname === '/class' && <AllTeaching navigate={router.navigate} />}
         {router.pathname === '/createClass' && <CreateClass />}
         {router.pathname?.startsWith('/class/') && (

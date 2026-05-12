@@ -31,8 +31,6 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   Legend,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
@@ -47,6 +45,17 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ScheduleIcon from '@mui/icons-material/Schedule';
 import WarningIcon from '@mui/icons-material/Warning';
 import StarIcon from '@mui/icons-material/Star';
+
+class ChartErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { hasError: false }; }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return <Box sx={{ p: 3, textAlign: 'center' }}><Typography variant="body2" color="text.secondary">Chart unavailable</Typography></Box>;
+    }
+    return this.props.children;
+  }
+}
 
 const API = import.meta.env.VITE_BACKEND_URL;
 
@@ -231,25 +240,27 @@ const StudentDashboard = ({ userInfo }) => {
                 Your viva scores over time
               </Typography>
               {lineChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={lineChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <YAxis domain={[0, 10]} tick={{ fill: '#64748b', fontSize: 12 }} />
-                    <RechartsTooltip
-                      contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
-                      formatter={(value, name, props) => [`${value}/10`, props.payload.name]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="score"
-                      stroke={COLORS.viva}
-                      strokeWidth={2.5}
-                      dot={{ r: 5, fill: COLORS.viva, strokeWidth: 2, stroke: '#fff' }}
-                      activeDot={{ r: 7, stroke: COLORS.viva, strokeWidth: 2 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ChartErrorBoundary>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <LineChart data={lineChartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                      <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <YAxis domain={[0, 10]} tick={{ fill: '#64748b', fontSize: 12 }} />
+                      <RechartsTooltip
+                        contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                        formatter={(value, name, props) => [`${value}/10`, props.payload.name]}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="score"
+                        stroke={COLORS.viva}
+                        strokeWidth={2.5}
+                        dot={{ r: 5, fill: COLORS.viva, strokeWidth: 2, stroke: '#fff' }}
+                        activeDot={{ r: 7, stroke: COLORS.viva, strokeWidth: 2 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </ChartErrorBoundary>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 8 }}>
                   <RecordVoiceOverIcon sx={{ fontSize: 48, color: '#cbd5e1', mb: 2 }} />
@@ -614,28 +625,30 @@ const TeacherDashboard = ({ userInfo }) => {
                 How students are performing
               </Typography>
               {pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={240}>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      innerRadius={45}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={index} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip
-                      formatter={(value, name) => [`${value} students`, name]}
-                      contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <ChartErrorBoundary>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        innerRadius={45}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={index} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        formatter={(value, name) => [`${value} students`, name]}
+                        contentStyle={{ borderRadius: 8, border: '1px solid #e2e8f0' }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ChartErrorBoundary>
               ) : (
                 <Box sx={{ textAlign: 'center', py: 6 }}>
                   <Typography variant="body2" sx={{ color: '#94a3b8' }}>No data yet</Typography>

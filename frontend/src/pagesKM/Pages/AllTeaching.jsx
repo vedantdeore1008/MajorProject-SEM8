@@ -30,14 +30,17 @@ const AllTeaching = ({ navigate }) => {
     isLoading: isUserClassesLoading,
     error: userClassesError,
     refetch: refetchUserClasses,
-  } = useGetAllClassesQuery(userInfo._id);
+  } = useGetAllClassesQuery(userInfo?._id, { skip: !userInfo?._id });
 
   const {
     data: publicClassesData,
     isLoading: isPublicClassesLoading,
     error: publicClassesError,
     refetch: refetchPublicClasses,
-  } = useGetAllPublicClassesQuery({ userId: userInfo._id, role: userInfo.role });
+  } = useGetAllPublicClassesQuery(
+    { userId: userInfo?._id, role: userInfo?.role },
+    { skip: !userInfo?._id }
+  );
 
   const [joinClass, { isLoading: isJoining }] = useJoinClassMutation();
 

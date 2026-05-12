@@ -26,7 +26,9 @@ import HomeIcon from '@mui/icons-material/Home';
 import ExitToAppIcon from '@mui/icons-material/ExitToApp';
 import PersonIcon from '@mui/icons-material/Person';
 import EditIcon from '@mui/icons-material/Edit';
+import AssessmentIcon from '@mui/icons-material/Assessment';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate as useRouterNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { logout, setCredentials } from '../redux/features/auth/authSlice';
 import { useGetAllClassesQuery } from '../redux/api/classApiSlice';
@@ -101,6 +103,8 @@ export default function Main() {
     setSaving(false);
   };
 
+  const routerNavigate = useRouterNavigate();
+
   const navItems = [
     { label: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { label: 'Home', icon: <HomeIcon />, path: '/class' },
@@ -167,6 +171,26 @@ export default function Main() {
             >
               AI Interview
             </Button>
+            {userInfo?.role === 'student' && (
+              <Button
+                startIcon={<AssessmentIcon />}
+                onClick={() => routerNavigate('/viva-results')}
+                sx={{
+                  color: '#64748b',
+                  backgroundColor: 'transparent',
+                  borderRadius: 2,
+                  px: 2,
+                  py: 0.8,
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  textTransform: 'none',
+                  '&:hover': { backgroundColor: '#f1f5f9', color: '#4361ee' },
+                }}
+              >
+                My Results
+              </Button>
+            )}
+
             <Menu
               anchorEl={teachingMenuAnchor}
               open={Boolean(teachingMenuAnchor)}

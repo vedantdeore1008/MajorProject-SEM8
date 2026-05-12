@@ -11,6 +11,7 @@ import ClassPage from './pagesKM/Pages/ClassPage.jsx'
 import LecturePage from './pagesKM/Pages/LecturePage.jsx'
 import TakePicture from './pagesPP/Viva/TakePicture.jsx'
 import GiveViva from './pagesPP/Viva/GiveViva.jsx'
+import VivaResultsPage from './pagesPP/Viva/VivaResultsPage.jsx'
 
 import GivePicture from './pagesPP/Quiz/GivePicture.jsx'
 import GiveQuiz from './pagesPP/Quiz/GiveQuiz.jsx'
@@ -57,8 +58,7 @@ function App() {
           <Route path="/givepicture/:quizId" element={<GivePicture />} />
           <Route path="/give-quiz/:quizId" element={<GiveQuiz />} />
           <Route path="/give-viva/:vivaId" element={<GiveViva />} />
-          <Route path="/takepicture/:vivaId" element={<TakePicture />} />
-          <Route path="/give-viva/:vivaId" element={<GiveViva />} />
+          <Route path="/viva-results" element={<VivaResultsPage />} />
           <Route path="/project-doc/:docId" element={<ProjectDocViewer></ProjectDocViewer>} />
           {/* <Route path="/room" element={<VideoMeeting />} />{} */}
           <Route path="/room/:classId/:roomId" element={<RoomMeet />} />

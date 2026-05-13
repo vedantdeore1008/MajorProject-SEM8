@@ -33,6 +33,8 @@ const API = import.meta.env.VITE_BACKEND_URL;
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = import.meta.env.VITE_UPLOAD_PRESET;
 
+const toHttps = (url) => url ? url.replace(/^http:\/\//i, 'https://') : '';
+
 function useDemoRouter(initialPath) {
   const [pathname, setPathname] = React.useState(initialPath);
   const router = React.useMemo(() => ({
@@ -205,7 +207,7 @@ export default function Main() {
               <Typography variant="caption" sx={{ color: '#94a3b8', textTransform: 'capitalize' }}>{userInfo?.role}</Typography>
             </Box>
             <IconButton onClick={(e) => setUserMenuAnchor(e.currentTarget)} size="small">
-              <Avatar alt={userInfo?.name} src={userInfo?.profile_pic} sx={{ width: 36, height: 36, border: '2px solid #eef2ff' }} />
+              <Avatar alt={userInfo?.name} src={toHttps(userInfo?.profile_pic)} sx={{ width: 36, height: 36, border: '2px solid #eef2ff' }} />
             </IconButton>
             <Menu anchorEl={userMenuAnchor} open={Boolean(userMenuAnchor)} onClose={() => setUserMenuAnchor(null)}
               PaperProps={{ sx: { borderRadius: 2, boxShadow: '0 4px 20px rgba(0,0,0,0.08)', border: '1px solid #e2e8f0', mt: 1, minWidth: 180 } }}>
@@ -304,7 +306,7 @@ export default function Main() {
         <Box sx={{ p: 2 }}>
           <Divider sx={{ mb: 2 }} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Avatar src={userInfo?.profile_pic} sx={{ width: 36, height: 36 }} />
+            <Avatar src={toHttps(userInfo?.profile_pic)} sx={{ width: 36, height: 36 }} />
             <Box>
               <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{userInfo?.name}</Typography>
               <Typography variant="caption" sx={{ color: '#94a3b8', textTransform: 'capitalize' }}>{userInfo?.role}</Typography>

@@ -14,6 +14,13 @@ export const uploadfile = async (file) => {
   });
   const responseData = await response.json();
 
+  if (responseData.url) {
+    responseData.url = responseData.url.replace(/^http:\/\//i, 'https://');
+  }
+  if (responseData.secure_url) {
+    responseData.url = responseData.secure_url;
+  }
+
   return responseData;
 };
 

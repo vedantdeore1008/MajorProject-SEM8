@@ -4,19 +4,12 @@ export const getVivaResultByStudentid = async (req, res) => {
     try {
         const { studentId } = req.params;
 
-        // Populate the 'vivaId' field with all details from the 'Viva' model
         const vivaResult = await vivaresult
             .find({ studentId })
             .sort({ dateOfViva: -1, _id: -1 })
             .populate('vivaId');
 
-        console.log(vivaResult);
-
-        if (!vivaResult || vivaResult.length === 0) {
-            return res.status(404).json({ message: "No viva results found for the student" });
-        }
-
-        res.status(200).json(vivaResult);
+        res.status(200).json(vivaResult || []);
     } catch (error) {
         console.error("Error fetching viva results:", error);
         res.status(500).json({ message: "Internal server error" });

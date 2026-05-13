@@ -59,6 +59,8 @@ const Interview = () => {
   const [audioPermission, setAudioPermission] = useState(null); // null | granted | denied
   const [startingViva, setStartingViva] = useState(false);
   const [fetchingQuestions, setFetchingQuestions] = useState(true);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const [coldStartTimer, setColdStartTimer] = useState(0);
 
   const { vivaId } = useParams();
   const { userInfo } = useSelector((state) => state.user);
@@ -67,6 +69,8 @@ const Interview = () => {
   const audioChunksRef = useRef([]);
   const streamRef = useRef(null);
   const saveAttemptedRef = useRef(false);
+  const recognitionRef = useRef(null);
+  const transcriptRef = useRef("");
 
   const finalizeViva = (reportData = null) => {
     if (saveAttemptedRef.current) return;
@@ -82,8 +86,17 @@ const Interview = () => {
     setReportReady(true);
   };
 
+  // Cold start timer effect
+  useEffect(() => {
+    if (coldStartTimer > 0) {
+      const interval = setInterval(() => setColdStartTimer((prev) => prev + 1), 1000);
+      return () => clearInterval(interval);
+    }
+  }, [coldStartTimer > 0]);
+
   const speakText = async (text, rate = 0.95) => {
     setVivaStatus("speaking");
+    setColdStartTimer(0);
     try {
       const response = await fetch(`${PYTHON_URL}/generate_speech`, {
         method: "POST",
@@ -113,6 +126,7 @@ const Interview = () => {
         setCurrentQuestion(text);
         setQuestionload(false);
         setStarted(true);
+        setStartingViva(false);
       } else {
         throw new Error("No speech data received from the API");
       }
@@ -122,7 +136,7 @@ const Interview = () => {
       if (synth) {
         synth.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "hi-IN";
+        utterance.lang = "en-US";
         utterance.rate = rate;
         utterance.onend = () => {
           setTimer(timeofthinking * 60);
@@ -135,8 +149,10 @@ const Interview = () => {
         setCurrentQuestion(text);
         setQuestionload(false);
         setStarted(true);
+        setStartingViva(false);
       } else {
         setMicOn(false);
+        setStartingViva(false);
       }
     }
   };
@@ -166,11 +182,70 @@ const Interview = () => {
     } catch { return 0; }
   };
 
-  const startAudioRecording = () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      console.error("getUserMedia not available");
+  const startSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn("SpeechRecognition not supported in this browser");
       return;
     }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
+
+      let finalTranscript = "";
+
+      recognition.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const t = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += t + " ";
+          } else {
+            interim = t;
+          }
+        }
+        transcriptRef.current = (finalTranscript + interim).trim();
+        setLiveTranscript(transcriptRef.current);
+      };
+
+      recognition.onerror = (event) => {
+        console.warn("SpeechRecognition error:", event.error);
+        if (event.error === "not-allowed") setAudioPermission('denied');
+      };
+
+      recognition.onend = () => {
+        if (micOn && !isVivaEnded && recognitionRef.current) {
+          try { recognitionRef.current.start(); } catch { /* already running */ }
+        }
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (err) {
+      console.warn("Failed to start SpeechRecognition:", err);
+    }
+  };
+
+  const stopSpeechRecognition = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch { /* ok */ }
+      recognitionRef.current = null;
+    }
+    const captured = transcriptRef.current;
+    transcriptRef.current = "";
+    setLiveTranscript("");
+    return captured;
+  };
+
+  const startAudioRecording = () => {
+    transcriptRef.current = "";
+    setLiveTranscript("");
+    startSpeechRecognition();
+
+    if (!navigator.mediaDevices?.getUserMedia) return;
     navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 }
     }).then((stream) => {
@@ -202,7 +277,6 @@ const Interview = () => {
       mediaRecorder.start(1000);
     }).catch((error) => {
       console.error("Error accessing microphone:", error);
-      setAudioPermission('denied');
     });
   };
 
@@ -319,12 +393,12 @@ const Interview = () => {
   const startViva = async () => {
     if (!teacherQuestionsReady) { setResumeMessage("Please wait for the teacher to finalize your questions."); return; }
     setStartingViva(true);
+    setColdStartTimer(1);
     const hasAudio = await checkAudioPermission();
-    if (!hasAudio) { setStartingViva(false); return; }
+    if (!hasAudio) { setStartingViva(false); setColdStartTimer(0); return; }
     setCurrentDifficulty("easy");
     setAskedCounts({ easy: 0, medium: 0, hard: 0 });
     setAttemptsPerDifficulty({ easy: 0, medium: 0, hard: 0 });
-    setStartingViva(false);
     selectNextQuestion();
   };
 
@@ -354,18 +428,27 @@ const Interview = () => {
     if (isVivaEnded) return;
     setTimer(0); setLoading(true); setQuestionload(true); setMicOn(false);
     setVivaStatus("processing");
+
+    const speechTranscript = stopSpeechRecognition();
     const audioFile = await stopAudioRecording();
-    if (!audioFile || audioFile.size < 100) {
-      console.warn("No valid audio captured, skipping evaluation");
-      setQHistory((prev) => [...prev, { questionText: c_question, modelAnswer: c_answer, studentAnswer: "No audio captured", evaluation: "Audio not recorded - score not available" }]);
+
+    if ((!speechTranscript || speechTranscript.length < 3) && (!audioFile || audioFile.size < 100)) {
+      console.warn("No speech or audio captured");
+      setQHistory((prev) => [...prev, { questionText: c_question, modelAnswer: c_answer, studentAnswer: "No speech detected", evaluation: { Relevance: 0, Completeness: 0, Accuracy: 0, DepthOfKnowledge: 0, TotalAverageScore: 0, rawText: "No speech detected" } }]);
       setQuestionload(false);
       if (!isVivaEnded) selectNextQuestion();
       return;
     }
+
     const formData = new FormData();
     formData.append("question", c_question);
     formData.append("modelAnswer", c_answer);
-    formData.append("audio", audioFile);
+    if (speechTranscript && speechTranscript.length >= 3) {
+      formData.append("transcript", speechTranscript);
+    }
+    if (audioFile && audioFile.size >= 100) {
+      formData.append("audio", audioFile);
+    }
     try {
       const response = await axios.post(`${API}/viva/send-to-gemini`, formData);
       const evalText = response?.data?.evaluation;
@@ -552,6 +635,23 @@ const Interview = () => {
         </Paper>
       )}
 
+      {/* Cold Start Loading Overlay */}
+      {startingViva && coldStartTimer > 0 && (
+        <Paper sx={{ mb: 2, p: 3, borderRadius: 3, border: '1px dashed #c7d2fe', boxShadow: 'none', backgroundColor: '#eef2ff', textAlign: 'center' }}>
+          <CircularProgress size={32} sx={{ color: '#4361ee', mb: 1.5 }} />
+          <Typography variant="body1" sx={{ fontWeight: 600, color: '#4361ee', mb: 0.5 }}>
+            Preparing your interview...
+          </Typography>
+          <Typography variant="body2" sx={{ color: '#64748b', mb: 1 }}>
+            Loading AI voice engine from server ({coldStartTimer}s)
+          </Typography>
+          <LinearProgress variant="indeterminate" sx={{ height: 3, borderRadius: 2, backgroundColor: '#c7d2fe', '& .MuiLinearProgress-bar': { backgroundColor: '#4361ee' } }} />
+          <Typography variant="caption" sx={{ color: '#94a3b8', mt: 1, display: 'block' }}>
+            {coldStartTimer < 10 ? 'Connecting to server...' : coldStartTimer < 25 ? 'Server is waking up (free tier takes ~30s)...' : coldStartTimer < 45 ? 'Almost ready, generating voice...' : 'Taking longer than usual, please wait...'}
+          </Typography>
+        </Paper>
+      )}
+
       <AlertAgreeDisagree open={openDialog} title="End Interview" description="Are you sure you want to end this interview? Your answers so far will be saved and evaluated." confirmText="Yes, End" cancelText="Continue" onConfirm={handleAgree} onCancel={handleDisagree} />
 
       {/* Main Content */}
@@ -640,6 +740,18 @@ const Interview = () => {
                   </Box>
                 )}
               </Box>
+
+              {/* Live transcript display */}
+              {started && micOn && (
+                <Box sx={{ mt: 2, p: 1.5, backgroundColor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', minHeight: 40 }}>
+                  <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
+                    Live Transcript {liveTranscript ? '' : '(speak now...)'}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: liveTranscript ? '#1e293b' : '#94a3b8', fontStyle: liveTranscript ? 'normal' : 'italic' }}>
+                    {liveTranscript || 'Waiting for speech...'}
+                  </Typography>
+                </Box>
+              )}
             </Paper>
           )}
 

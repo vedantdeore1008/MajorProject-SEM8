@@ -19,6 +19,7 @@ const resumeSubmissionSchema = new mongoose.Schema(
         studentName: { type: String, default: "" },
         resumeUrl: { type: String, required: true },
         resumeFileName: { type: String, required: true },
+        resumeText: { type: String, default: "" },
         questionAnswerSet: {
             type: [questionSchema],
             default: [],

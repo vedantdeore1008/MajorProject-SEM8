@@ -45,100 +45,54 @@ Generate exactly 9 questions with model answers:
 - 3 medium (applied knowledge from their projects/experience)
 - 3 hard (deep technical questions about their work)
 
-Use only the information inferable from the resume skills/projects/experience.
-Return ONLY valid JSON in this exact format (no markdown, no code blocks):
-{"questions": [{"difficulty": "easy", "questionText": "...", "answer": "..."}, ...]}`;
+IMPORTANT: Questions MUST be directly related to the skills, projects, technologies, and experience mentioned in the resume below.
+Return ONLY valid JSON in this exact format (no markdown, no code blocks, no explanation):
+{"questions": [{"difficulty": "easy", "questionText": "...", "answer": "..."}, {"difficulty": "easy", "questionText": "...", "answer": "..."}, {"difficulty": "easy", "questionText": "...", "answer": "..."}, {"difficulty": "medium", "questionText": "...", "answer": "..."}, {"difficulty": "medium", "questionText": "...", "answer": "..."}, {"difficulty": "medium", "questionText": "...", "answer": "..."}, {"difficulty": "hard", "questionText": "...", "answer": "..."}, {"difficulty": "hard", "questionText": "...", "answer": "..."}, {"difficulty": "hard", "questionText": "...", "answer": "..."}]}`;
 
 const parseAIQuestions = (rawText) => {
-  const cleaned = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+  let cleaned = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
   let parsed;
   try {
     parsed = JSON.parse(cleaned);
   } catch {
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
-    else throw new Error("AI response was not valid JSON");
+    else throw new Error("AI response was not valid JSON: " + cleaned.substring(0, 200));
   }
   return normalizeQuestionSet(parsed?.questions || []);
 };
 
-const extractPdfText = async (resumePath) => {
-  const pdfBuffer = fs.readFileSync(resumePath);
+const extractPdfText = async (filePath) => {
+  const pdfBuffer = fs.readFileSync(filePath);
   const data = await pdfParse(pdfBuffer);
-  return data.text || "";
+  return (data.text || "").trim();
 };
 
-const generateWithGemini = async (resumePath) => {
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-  const pdfBytes = fs.readFileSync(resumePath);
-
-  // Try with inline PDF first
-  try {
-    const result = await model.generateContent([
-      RESUME_PROMPT,
-      { inlineData: { mimeType: "application/pdf", data: pdfBytes.toString("base64") } },
-    ]);
-    return parseAIQuestions(String(result?.response?.text?.() || ""));
-  } catch (pdfErr) {
-    console.warn("[resume-questions] Gemini PDF inline failed, trying with extracted text:", pdfErr?.message);
+// Generate questions from resume TEXT (not file path - works even after file is deleted)
+const generateQuestionsFromText = async (resumeText) => {
+  if (!resumeText || resumeText.length < 30) {
+    throw new Error("Resume text is too short or empty to generate questions");
   }
 
-  // Fallback: extract text and send as plain text to Gemini
-  const resumeText = await extractPdfText(resumePath);
-  if (!resumeText || resumeText.trim().length < 30) {
-    throw new Error("Could not extract text from resume for Gemini text fallback");
-  }
-
-  const result = await model.generateContent(
-    `${RESUME_PROMPT}\n\n--- STUDENT RESUME ---\n${resumeText.substring(0, 5000)}\n--- END RESUME ---`
-  );
-  return parseAIQuestions(String(result?.response?.text?.() || ""));
-};
-
-const generateWithGroq = async (resumePath) => {
-  if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not configured");
-
-  const resumeText = await extractPdfText(resumePath);
-  if (!resumeText || resumeText.trim().length < 30) {
-    throw new Error("Could not extract meaningful text from resume PDF");
-  }
-
-  // Send up to 4000 chars of actual resume text
-  const resumeContent = resumeText.substring(0, 4000);
-  console.log("[resume-questions] Extracted PDF text length:", resumeText.length, "| Sending:", resumeContent.length);
-
-  const response = await axios.post(
-    "https://api.groq.com/openai/v1/chat/completions",
-    {
-      model: "llama-3.3-70b-versatile",
-      messages: [{
-        role: "system",
-        content: "You generate technical viva interview questions strictly based on the resume provided. Questions MUST relate to the skills, projects, technologies, and experience mentioned in the resume. Return ONLY valid JSON."
-      }, {
-        role: "user",
-        content: `${RESUME_PROMPT}\n\n--- STUDENT RESUME ---\n${resumeContent}\n--- END RESUME ---`
-      }],
-      temperature: 0.3,
-      max_tokens: 3000,
-    },
-    { headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
-  );
-
-  const content = response.data?.choices?.[0]?.message?.content || "";
-  return parseAIQuestions(content);
-};
-
-const generateThreeThreeThreeFromResume = async (resumePath) => {
+  const textToUse = resumeText.substring(0, 5000);
   let lastError = null;
 
   // Try Gemini first
   if (GEMINI_API_KEY) {
     try {
-      const questions = await generateWithGemini(resumePath);
+      console.log("[resume-questions] Trying Gemini with text...");
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const result = await model.generateContent(
+        `${RESUME_PROMPT}\n\n--- STUDENT RESUME CONTENT ---\n${textToUse}\n--- END RESUME ---`
+      );
+      const questions = parseAIQuestions(String(result?.response?.text?.() || ""));
       const { valid } = validateThreeThreeThree(questions);
-      if (valid) return questions;
-      lastError = new Error("Gemini did not return valid 3/3/3 set");
+      if (valid) {
+        console.log("[resume-questions] Gemini generated 9 valid questions");
+        return questions;
+      }
+      lastError = new Error("Gemini returned " + questions.length + " questions instead of 9");
     } catch (err) {
       console.warn("[resume-questions] Gemini failed:", err?.message);
       lastError = err;
@@ -148,11 +102,32 @@ const generateThreeThreeThreeFromResume = async (resumePath) => {
   // Fallback to Groq
   if (GROQ_API_KEY) {
     try {
-      console.log("[resume-questions] Trying Groq fallback...");
-      const questions = await generateWithGroq(resumePath);
+      console.log("[resume-questions] Trying Groq fallback with text...");
+      const response = await axios.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          model: "llama-3.3-70b-versatile",
+          messages: [{
+            role: "system",
+            content: "You generate technical viva interview questions strictly based on the resume provided. Questions MUST directly relate to the skills, projects, technologies, and experience mentioned in the resume. Return ONLY valid JSON, nothing else."
+          }, {
+            role: "user",
+            content: `${RESUME_PROMPT}\n\n--- STUDENT RESUME CONTENT ---\n${textToUse}\n--- END RESUME ---`
+          }],
+          temperature: 0.3,
+          max_tokens: 3000,
+        },
+        { headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
+      );
+
+      const content = response.data?.choices?.[0]?.message?.content || "";
+      const questions = parseAIQuestions(content);
       const { valid } = validateThreeThreeThree(questions);
-      if (valid) return questions;
-      lastError = new Error("Groq did not return valid 3/3/3 set");
+      if (valid) {
+        console.log("[resume-questions] Groq generated 9 valid questions");
+        return questions;
+      }
+      lastError = new Error("Groq returned " + questions.length + " questions instead of 9");
     } catch (err) {
       console.error("[resume-questions] Groq also failed:", err?.message);
       lastError = err;
@@ -182,6 +157,17 @@ export const uploadStudentResume = async (req, res) => {
 
     const fileName = path.basename(req.file.path);
     const resumeUrl = buildResumeUrl(fileName);
+    const resumeFilePath = req.file.path;
+
+    // Extract text from PDF and store it permanently in DB
+    let resumeText = "";
+    try {
+      resumeText = await extractPdfText(resumeFilePath);
+      console.log("[resume-upload] Extracted text length:", resumeText.length);
+    } catch (extractErr) {
+      console.error("[resume-upload] PDF text extraction failed:", extractErr?.message);
+    }
+
     const existingIndex = viva.resumeSubmissions.findIndex(
       (item) => String(item.studentId) === String(studentId)
     );
@@ -191,24 +177,28 @@ export const uploadStudentResume = async (req, res) => {
       studentName: String(studentName || "").trim(),
       resumeUrl,
       resumeFileName: req.file.originalname,
+      resumeText,
       questionAnswerSet: [],
       preparedByTeacher: false,
       uploadedAt: new Date(),
       updatedAt: new Date(),
     };
 
-    // attempt to auto-generate AI draft questions immediately (non-blocking)
-    try {
-      const resumeFilePath = path.join(process.cwd(), resumeUrl.replace(/^\//, ""));
-      if (fs.existsSync(resumeFilePath)) {
-        const generated = await generateThreeThreeThreeFromResume(resumeFilePath);
+    // Auto-generate questions from the extracted resume text
+    let generationError = null;
+    if (resumeText && resumeText.length >= 30) {
+      try {
+        const generated = await generateQuestionsFromText(resumeText);
         if (Array.isArray(generated) && generated.length === 9) {
           nextSubmission.questionAnswerSet = generated;
-          nextSubmission.preparedByTeacher = false; // draft generated by AI
+          console.log("[resume-upload] Auto-generated 9 questions successfully");
         }
+      } catch (aiErr) {
+        generationError = aiErr?.message || "Unknown AI error";
+        console.error("[resume-upload] AI question generation failed:", generationError);
       }
-    } catch (aiErr) {
-      console.error("AI draft generation failed (continuing):", aiErr?.message || aiErr);
+    } else {
+      generationError = "Could not extract text from PDF (text too short or empty)";
     }
 
     if (existingIndex >= 0) {
@@ -218,9 +208,8 @@ export const uploadStudentResume = async (req, res) => {
         ...viva.resumeSubmissions[existingIndex].toObject(),
         ...nextSubmission,
       };
-
       if (oldResumePath && fs.existsSync(oldResumePath)) {
-        fs.unlinkSync(oldResumePath);
+        try { fs.unlinkSync(oldResumePath); } catch {}
       }
     } else {
       viva.resumeSubmissions.push(nextSubmission);
@@ -229,11 +218,15 @@ export const uploadStudentResume = async (req, res) => {
     await viva.save();
 
     return res.status(201).json({
-      message: "Resume uploaded successfully",
+      message: nextSubmission.questionAnswerSet.length === 9
+        ? "Resume uploaded and 9 questions generated from your resume!"
+        : "Resume uploaded but question generation failed: " + (generationError || "unknown"),
       success: true,
+      questionsGenerated: nextSubmission.questionAnswerSet.length,
       data: nextSubmission,
     });
   } catch (error) {
+    console.error("[resume-upload] Fatal error:", error);
     return res.status(500).json({ message: error.message || "Server error", success: false });
   }
 };
@@ -279,13 +272,29 @@ export const generateResumeQuestions = async (req, res) => {
     }
 
     const submission = viva.resumeSubmissions[submissionIndex];
-    const resumePath = path.join(process.cwd(), String(submission.resumeUrl || "").replace(/^\//, ""));
 
-    if (!fs.existsSync(resumePath)) {
-      return res.status(404).json({ message: "Resume file not found on server", success: false });
+    // Use stored resumeText from DB (persists across Render deploys)
+    let resumeText = submission.resumeText || "";
+
+    // If no stored text, try reading from filesystem as fallback
+    if (!resumeText || resumeText.length < 30) {
+      const resumePath = path.join(process.cwd(), String(submission.resumeUrl || "").replace(/^\//, ""));
+      if (fs.existsSync(resumePath)) {
+        try {
+          resumeText = await extractPdfText(resumePath);
+          submission.resumeText = resumeText;
+        } catch {}
+      }
     }
 
-    const questionAnswerSet = await generateThreeThreeThreeFromResume(resumePath);
+    if (!resumeText || resumeText.length < 30) {
+      return res.status(400).json({
+        message: "Cannot generate questions - resume text not available. Please re-upload the resume.",
+        success: false,
+      });
+    }
+
+    const questionAnswerSet = await generateQuestionsFromText(resumeText);
     submission.questionAnswerSet = questionAnswerSet;
     submission.preparedByTeacher = false;
     submission.updatedAt = new Date();
@@ -294,10 +303,12 @@ export const generateResumeQuestions = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "AI draft generated. Teacher can review and save.",
+      message: "AI generated 9 questions from resume successfully!",
+      questionsGenerated: questionAnswerSet.length,
       data: submission,
     });
   } catch (error) {
+    console.error("[generate-resume-questions] Error:", error);
     return res.status(500).json({ message: error.message || "Failed to generate questions", success: false });
   }
 };

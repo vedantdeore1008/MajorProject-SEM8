@@ -61,6 +61,7 @@ const Interview = () => {
   const [fetchingQuestions, setFetchingQuestions] = useState(true);
   const [liveTranscript, setLiveTranscript] = useState("");
   const [coldStartTimer, setColdStartTimer] = useState(0);
+  const [coldStartStage, setColdStartStage] = useState(0);
 
   const { vivaId } = useParams();
   const { userInfo } = useSelector((state) => state.user);
@@ -71,6 +72,7 @@ const Interview = () => {
   const saveAttemptedRef = useRef(false);
   const recognitionRef = useRef(null);
   const transcriptRef = useRef("");
+  const isListeningRef = useRef(false);
 
   const finalizeViva = (reportData = null) => {
     if (saveAttemptedRef.current) return;
@@ -86,17 +88,28 @@ const Interview = () => {
     setReportReady(true);
   };
 
-  // Cold start timer effect
+  // Cold start timer + staged messages
   useEffect(() => {
     if (coldStartTimer > 0) {
-      const interval = setInterval(() => setColdStartTimer((prev) => prev + 1), 1000);
+      const interval = setInterval(() => {
+        setColdStartTimer((prev) => prev + 1);
+      }, 1000);
       return () => clearInterval(interval);
     }
   }, [coldStartTimer > 0]);
 
+  useEffect(() => {
+    if (coldStartTimer <= 0) { setColdStartStage(0); return; }
+    if (coldStartTimer >= 40) setColdStartStage(5);
+    else if (coldStartTimer >= 30) setColdStartStage(4);
+    else if (coldStartTimer >= 20) setColdStartStage(3);
+    else if (coldStartTimer >= 12) setColdStartStage(2);
+    else if (coldStartTimer >= 5) setColdStartStage(1);
+    else setColdStartStage(0);
+  }, [coldStartTimer]);
+
   const speakText = async (text, rate = 0.95) => {
     setVivaStatus("speaking");
-    setColdStartTimer(0);
     try {
       const response = await fetch(`${PYTHON_URL}/generate_speech`, {
         method: "POST",
@@ -106,6 +119,7 @@ const Interview = () => {
       if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
       const data = await response.json();
       if (data.speech) {
+        setColdStartTimer(0);
         const byteCharacters = atob(data.speech);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -131,20 +145,29 @@ const Interview = () => {
         throw new Error("No speech data received from the API");
       }
     } catch (error) {
-      console.error("Error with API call or speech synthesis:", error);
+      console.error("Error with Flask TTS, falling back to browser voice:", error);
+      setColdStartTimer(0);
       const synth = window.speechSynthesis;
       if (synth) {
         synth.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = "en-US";
         utterance.rate = rate;
+        utterance.pitch = 1.0;
+        const voices = synth.getVoices();
+        const preferred = voices.find(v => v.name.includes("Google") && v.lang.startsWith("en")) ||
+          voices.find(v => v.name.includes("Natural") && v.lang.startsWith("en")) ||
+          voices.find(v => v.name.includes("Microsoft") && v.lang.startsWith("en") && v.name.includes("Online")) ||
+          voices.find(v => v.lang.startsWith("en-") && !v.localService) ||
+          voices.find(v => v.lang.startsWith("en"));
+        if (preferred) utterance.voice = preferred;
         utterance.onend = () => {
           setTimer(timeofthinking * 60);
           setMicOn(true);
           setVivaStatus("listening");
           startAudioRecording();
         };
-        utterance.onerror = () => setMicOn(false);
+        utterance.onerror = () => { setMicOn(false); setStartingViva(false); };
         synth.speak(utterance);
         setCurrentQuestion(text);
         setQuestionload(false);
@@ -185,17 +208,25 @@ const Interview = () => {
   const startSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      console.warn("SpeechRecognition not supported in this browser");
+      console.warn("SpeechRecognition not supported - will use audio file only");
       return;
     }
-    try {
+
+    // Stop any existing recognition first
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort(); } catch {}
+      recognitionRef.current = null;
+    }
+
+    isListeningRef.current = true;
+    let finalTranscript = "";
+
+    const createRecognition = () => {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = "en-US";
       recognition.maxAlternatives = 1;
-
-      let finalTranscript = "";
 
       recognition.onresult = (event) => {
         let interim = "";
@@ -213,25 +244,47 @@ const Interview = () => {
 
       recognition.onerror = (event) => {
         console.warn("SpeechRecognition error:", event.error);
-        if (event.error === "not-allowed") setAudioPermission('denied');
+        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+          isListeningRef.current = false;
+          setAudioPermission('denied');
+        }
+        // For network/no-speech errors, let onend handle restart
       };
 
       recognition.onend = () => {
-        if (micOn && !isVivaEnded && recognitionRef.current) {
-          try { recognitionRef.current.start(); } catch { /* already running */ }
+        // Use ref (not state) to avoid stale closure
+        if (isListeningRef.current) {
+          setTimeout(() => {
+            if (isListeningRef.current) {
+              try {
+                const newRecog = createRecognition();
+                newRecog.start();
+                recognitionRef.current = newRecog;
+              } catch (e) {
+                console.warn("Failed to restart recognition:", e);
+              }
+            }
+          }, 100);
         }
       };
 
+      return recognition;
+    };
+
+    try {
+      const recognition = createRecognition();
       recognition.start();
       recognitionRef.current = recognition;
     } catch (err) {
       console.warn("Failed to start SpeechRecognition:", err);
+      isListeningRef.current = false;
     }
   };
 
   const stopSpeechRecognition = () => {
+    isListeningRef.current = false;
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch { /* ok */ }
+      try { recognitionRef.current.abort(); } catch {}
       recognitionRef.current = null;
     }
     const captured = transcriptRef.current;
@@ -243,13 +296,29 @@ const Interview = () => {
   const startAudioRecording = () => {
     transcriptRef.current = "";
     setLiveTranscript("");
+
+    // Start speech recognition
     startSpeechRecognition();
 
+    // Also start MediaRecorder as backup
     if (!navigator.mediaDevices?.getUserMedia) return;
     navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 }
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 44100,
+        channelCount: 1,
+      }
     }).then((stream) => {
       streamRef.current = stream;
+
+      // Verify audio tracks are active
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0 || !audioTracks[0].enabled) {
+        console.warn("No active audio tracks found");
+      }
+
       const preferredMimeTypes = [
         "audio/webm;codecs=opus", "audio/webm",
         "audio/ogg;codecs=opus", "audio/ogg",
@@ -637,18 +706,37 @@ const Interview = () => {
 
       {/* Cold Start Loading Overlay */}
       {startingViva && coldStartTimer > 0 && (
-        <Paper sx={{ mb: 2, p: 3, borderRadius: 3, border: '1px dashed #c7d2fe', boxShadow: 'none', backgroundColor: '#eef2ff', textAlign: 'center' }}>
-          <CircularProgress size={32} sx={{ color: '#4361ee', mb: 1.5 }} />
-          <Typography variant="body1" sx={{ fontWeight: 600, color: '#4361ee', mb: 0.5 }}>
-            Preparing your interview...
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#64748b', mb: 1 }}>
-            Loading AI voice engine from server ({coldStartTimer}s)
-          </Typography>
-          <LinearProgress variant="indeterminate" sx={{ height: 3, borderRadius: 2, backgroundColor: '#c7d2fe', '& .MuiLinearProgress-bar': { backgroundColor: '#4361ee' } }} />
-          <Typography variant="caption" sx={{ color: '#94a3b8', mt: 1, display: 'block' }}>
-            {coldStartTimer < 10 ? 'Connecting to server...' : coldStartTimer < 25 ? 'Server is waking up (free tier takes ~30s)...' : coldStartTimer < 45 ? 'Almost ready, generating voice...' : 'Taking longer than usual, please wait...'}
-          </Typography>
+        <Paper sx={{ mb: 2, p: 3, borderRadius: 3, border: '1px solid #e0e7ff', boxShadow: '0 4px 20px rgba(67,97,238,0.08)', backgroundColor: '#fafbff' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <CircularProgress size={28} sx={{ color: '#4361ee' }} />
+            <Typography variant="body1" sx={{ fontWeight: 700, color: '#1e293b' }}>
+              Setting up your AI Interview
+            </Typography>
+            <Chip label={`${coldStartTimer}s`} size="small" sx={{ ml: 'auto', backgroundColor: '#eef2ff', color: '#4361ee', fontWeight: 600 }} />
+          </Box>
+          <Box sx={{ pl: 1 }}>
+            {[
+              { label: 'Preparing AI Engine', done: coldStartStage >= 1 },
+              { label: 'Scanning your resume & profile', done: coldStartStage >= 2 },
+              { label: 'Building relevant questions based on difficulty', done: coldStartStage >= 3 },
+              { label: 'Setting up proctoring & anti-cheat monitors', done: coldStartStage >= 4 },
+              { label: 'Initializing voice synthesis engine', done: coldStartStage >= 5 },
+            ].map((step, i) => (
+              <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.8 }}>
+                {step.done ? (
+                  <CheckCircleIcon sx={{ fontSize: 18, color: '#10b981' }} />
+                ) : i === coldStartStage ? (
+                  <AutorenewIcon sx={{ fontSize: 18, color: '#4361ee', animation: 'spin 1s linear infinite', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } } }} />
+                ) : (
+                  <Box sx={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #e2e8f0' }} />
+                )}
+                <Typography variant="body2" sx={{ color: step.done ? '#10b981' : i === coldStartStage ? '#4361ee' : '#94a3b8', fontWeight: step.done || i === coldStartStage ? 600 : 400 }}>
+                  {step.label}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+          <LinearProgress variant="determinate" value={Math.min((coldStartStage / 5) * 100, 100)} sx={{ mt: 2, height: 4, borderRadius: 2, backgroundColor: '#e0e7ff', '& .MuiLinearProgress-bar': { backgroundColor: '#4361ee', borderRadius: 2 } }} />
         </Paper>
       )}
 
@@ -743,13 +831,22 @@ const Interview = () => {
 
               {/* Live transcript display */}
               {started && micOn && (
-                <Box sx={{ mt: 2, p: 1.5, backgroundColor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0', minHeight: 40 }}>
-                  <Typography variant="caption" sx={{ color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', mb: 0.5 }}>
-                    Live Transcript {liveTranscript ? '' : '(speak now...)'}
+                <Box sx={{ mt: 2, p: 2, backgroundColor: '#f0fdf4', borderRadius: 2, border: '1px solid #bbf7d0', minHeight: 50 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                    <HearingIcon sx={{ fontSize: 16, color: liveTranscript ? '#10b981' : '#94a3b8' }} />
+                    <Typography variant="caption" sx={{ color: liveTranscript ? '#10b981' : '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      {liveTranscript ? 'Speech Detected' : 'Listening... (speak clearly)'}
+                    </Typography>
+                    {liveTranscript && <CheckCircleIcon sx={{ fontSize: 14, color: '#10b981', ml: 'auto' }} />}
+                  </Box>
+                  <Typography variant="body2" sx={{ color: liveTranscript ? '#1e293b' : '#64748b', fontStyle: liveTranscript ? 'normal' : 'italic', lineHeight: 1.5 }}>
+                    {liveTranscript || 'Your answer will appear here as you speak. If nothing appears, check your microphone permissions in the browser address bar.'}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: liveTranscript ? '#1e293b' : '#94a3b8', fontStyle: liveTranscript ? 'normal' : 'italic' }}>
-                    {liveTranscript || 'Waiting for speech...'}
-                  </Typography>
+                  {!liveTranscript && (
+                    <Typography variant="caption" sx={{ color: '#ef4444', display: 'block', mt: 1 }}>
+                      Tip: Click the lock/mic icon in the address bar to ensure microphone access is allowed.
+                    </Typography>
+                  )}
                 </Box>
               )}
             </Paper>

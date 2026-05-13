@@ -4,6 +4,11 @@ dotenv.config()
 import mongoose from 'mongoose'
 import cors from 'cors'
 import CookieParser from 'cookie-parser'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 import registerRoute from './route/user.route.js'
 import vivaRoute from './route/viva.route.js'
 import VivaResult from './route/vivaresult.route.js'
@@ -48,7 +53,7 @@ app.use(
 )
 app.use(express.json())
 app.use(CookieParser())
-app.use('/uploads', express.static('uploads'))
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 
 const PORT = process.env.PORT || 4000
 

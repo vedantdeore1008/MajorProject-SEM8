@@ -520,68 +520,48 @@ const AllVivaById = ({ classId }) => {
     return status === 'Active' ? 'success' : 'error';
   };
   return (
-    <Box sx={{ p: 3, maxWidth: '1800px', mx: 'auto' }}>
+    <Box sx={{ p: { xs: 1.5, md: 3 }, maxWidth: '1800px', mx: 'auto' }}>
     {/* Header Section */}
     <Box sx={{
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      mb: 4,
-      flexWrap: 'wrap',
-      gap: 2
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      mb: 3, flexWrap: 'wrap', gap: 2
     }}>
-      <Typography variant="h4" sx={{ 
-        fontWeight: 'bold',
-        color: 'black',
-        fontFamily: 'Montserrat-Regular'
-      }}>
-        AI Interview Feature
-      </Typography>
-      
-      <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-        <Select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          size="small"
-          sx={{ minWidth: 120 }}
-        >
+      <Box>
+        <Typography variant="h5" sx={{ fontWeight: 700, color: '#1e293b' }}>AI Interview</Typography>
+        <Typography variant="body2" sx={{ color: '#64748b', mt: 0.3 }}>
+          {role === 'teacher' ? 'Create and manage AI interviews for your students' : 'View and take your AI interviews'}
+        </Typography>
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
+        <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} size="small"
+          sx={{ minWidth: 110, borderRadius: 2, '& .MuiOutlinedInput-notchedOutline': { borderColor: '#e2e8f0' } }}>
           <MenuItem value="all">All Status</MenuItem>
           <MenuItem value="Active">Active</MenuItem>
           <MenuItem value="Inactive">Inactive</MenuItem>
         </Select>
-        
         {role === 'teacher' && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setIsModalOpen(true)}
-            sx={{
-              backgroundColor: '#C89365',
-              '&:hover': {
-                backgroundColor: '#c9bbae'
-              }
-            }}
-          >
-            Create AI Interview
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setIsModalOpen(true)}
+            sx={{ backgroundColor: '#4361ee', borderRadius: 2, textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { backgroundColor: '#3730a3', boxShadow: 'none' } }}>
+            Create Interview
           </Button>
         )}
       </Box>
     </Box>
 
     {/* Viva Cards/Table */}
-    <Card elevation={3} sx={{ mb: 4 }}>
+    <Card sx={{ mb: 4, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none' }}>
       <CardContent sx={{ p: 0 }}>
         <TableContainer>
           <Table>
             <TableHead>
-              <TableRow sx={{ backgroundColor: theme.palette.grey[100] }}>
+              <TableRow sx={{ backgroundColor: '#f8fafc' }}>
                 {role !== 'student' && <TableCell width="50px" />}
-                <TableCell><Typography variant="subtitle1" fontWeight="bold">Viva Name</Typography></TableCell>
-                <TableCell align="center"><Typography variant="subtitle1" fontWeight="bold">Questions</Typography></TableCell>
-                <TableCell align="center"><Typography variant="subtitle1" fontWeight="bold">Thinking Time</Typography></TableCell>
-                <TableCell align="center"><Typography variant="subtitle1" fontWeight="bold">Due Date</Typography></TableCell>
-                <TableCell align="center"><Typography variant="subtitle1" fontWeight="bold">Status</Typography></TableCell>
-                <TableCell align="center"><Typography variant="subtitle1" fontWeight="bold">Actions</Typography></TableCell>
+                <TableCell><Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>Viva Name</Typography></TableCell>
+                <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>Questions</Typography></TableCell>
+                <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>Time</Typography></TableCell>
+                <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>Due Date</Typography></TableCell>
+                <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>Status</Typography></TableCell>
+                <TableCell align="center"><Typography variant="body2" sx={{ fontWeight: 600, color: '#64748b' }}>Actions</Typography></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -589,137 +569,62 @@ const AllVivaById = ({ classId }) => {
                 .filter((viva) => statusFilter === 'all' || viva.status === statusFilter)
                 .map((viva, index) => (
                   <React.Fragment key={viva._id}>
-                    <TableRow hover>
+                    <TableRow hover sx={{ '&:hover': { backgroundColor: '#fafbfc' } }}>
                       {role !== 'student' && (
                         <TableCell>
-                          <IconButton
-                            onClick={() => handleRowClick(index, viva._id)}
-                            size="small"
-                          >
-                            {openRows[index] ? (
-                              <KeyboardArrowUpIcon />
-                            ) : (
-                              <KeyboardArrowDownIcon />
-                            )}
+                          <IconButton onClick={() => handleRowClick(index, viva._id)} size="small" sx={{ color: '#64748b' }}>
+                            {openRows[index] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
                           </IconButton>
                         </TableCell>
                       )}
-
                       <TableCell>
                         {editMode === viva._id ? (
-                          <TextField
-                            size="small"
-                            fullWidth
-                            value={editedData.vivaname}
-                            onChange={(e) =>
-                              setEditedData({
-                                ...editedData,
-                                vivaname: e.target.value,
-                              })
-                            }
-                          />
+                          <TextField size="small" fullWidth value={editedData.vivaname}
+                            onChange={(e) => setEditedData({ ...editedData, vivaname: e.target.value })}
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
                         ) : (
-                          <Typography fontWeight="medium">{viva.vivaname}</Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>{viva.vivaname}</Typography>
                         )}
                       </TableCell>
-
                       <TableCell align="center">
-                        <Chip 
-                          label={viva.questionAnswerSet.length} 
-                          style={{backgroundColor:'#C89365',color:'white'}}
-                          size="small"
-                        />
+                        <Chip label={viva.questionAnswerSet.length} size="small"
+                          sx={{ fontWeight: 600, backgroundColor: '#eef2ff', color: '#4361ee', border: '1px solid #c7d2fe' }} />
                       </TableCell>
-
                       <TableCell align="center">
                         {editMode === viva._id ? (
-                          <TextField
-                            size="small"
-                            type="number"
-                            sx={{ width: 80 }}
+                          <TextField size="small" type="number" sx={{ width: 80, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                             value={editedData.timeofthinking}
-                            onChange={(e) =>
-                              setEditedData({
-                                ...editedData,
-                                timeofthinking: e.target.value,
-                              })
-                            }
-                          />
+                            onChange={(e) => setEditedData({ ...editedData, timeofthinking: e.target.value })} />
                         ) : (
-                          `${viva.timeofthinking} min`
+                          <Typography variant="body2" sx={{ color: '#64748b' }}>{viva.timeofthinking} min</Typography>
                         )}
                       </TableCell>
-
                       <TableCell align="center">
                         {editMode === viva._id ? (
-                          <TextField
-                            size="small"
-                            type="date"
-                            value={editedData.updatedAt.split('T')[0]}
-                            onChange={(e) =>
-                              setEditedData({
-                                ...editedData,
-                                updatedAt: e.target.value,
-                              })
-                            }
-                          />
+                          <TextField size="small" type="date" value={editedData.updatedAt?.split('T')[0] || ''}
+                            onChange={(e) => setEditedData({ ...editedData, updatedAt: e.target.value })}
+                            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
                         ) : (
-                          new Date(viva.updatedAt).toLocaleDateString()
+                          <Typography variant="body2" sx={{ color: '#64748b' }}>{new Date(viva.updatedAt).toLocaleDateString()}</Typography>
                         )}
                       </TableCell>
-
                       <TableCell align="center">
-                        <Chip
-                          label={viva.status === 'Active' ? 'Active' : 'Inactive'}
-                          color={getStatusColor(viva.status)}
-                          size="small"
-                        />
+                        <Chip label={viva.status === 'Active' ? 'Active' : 'Inactive'} size="small"
+                          sx={{ fontWeight: 600, backgroundColor: viva.status === 'Active' ? '#ecfdf5' : '#fef2f2', color: viva.status === 'Active' ? '#059669' : '#dc2626', border: `1px solid ${viva.status === 'Active' ? '#a7f3d0' : '#fecaca'}` }} />
                       </TableCell>
-
                       <TableCell align="center">
                         {role === 'student' ? (
-                          <Button
-                            variant="contained"
-                            startIcon={<StartIcon />}
-                            onClick={() => handleStartViva(viva._id)}
-                            size="small"
-                            sx={{
-                              backgroundColor: theme.palette.success.main,
-                              '&:hover': {
-                                backgroundColor: theme.palette.success.dark
-                              }
-                            }}
-                          >
+                          <Button variant="contained" startIcon={<StartIcon />} onClick={() => handleStartViva(viva._id)} size="small"
+                            sx={{ backgroundColor: '#10b981', borderRadius: 2, textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { backgroundColor: '#059669', boxShadow: 'none' } }}>
                             Start
                           </Button>
                         ) : editMode === viva._id ? (
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Tooltip title="Save">
-                              <IconButton 
-                                onClick={() => handleSave(viva._id)}
-                                color="primary"
-                              >
-                                <SaveIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="Cancel">
-                              <IconButton 
-                                onClick={handleCancel}
-                                color="error"
-                              >
-                                <CloseIcon />
-                              </IconButton>
-                            </Tooltip>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            <Tooltip title="Save"><IconButton onClick={() => handleSave(viva._id)} sx={{ color: '#4361ee' }}><SaveIcon fontSize="small" /></IconButton></Tooltip>
+                            <Tooltip title="Cancel"><IconButton onClick={handleCancel} sx={{ color: '#ef4444' }}><CloseIcon fontSize="small" /></IconButton></Tooltip>
                           </Box>
                         ) : (
-                          <Tooltip title="Edit">
-                            <IconButton 
-                              onClick={() => handleEdit(viva)}
-                              color="primary"
-                            >
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
+                          <Tooltip title="Edit"><IconButton onClick={() => handleEdit(viva)} sx={{ color: '#4361ee' }}><EditIcon fontSize="small" /></IconButton></Tooltip>
                         )}
                       </TableCell>
                     </TableRow>
@@ -729,153 +634,140 @@ const AllVivaById = ({ classId }) => {
                       <TableRow>
                         <TableCell colSpan={7} sx={{ p: 0 }}>
                           <Collapse in={openRows[index]} timeout="auto" unmountOnExit>
-                            <Box sx={{ p: 3, backgroundColor: theme.palette.grey[50] }}>
-                              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-                                Registered Students: {students[viva._id]?.data?.length || 0}
-                              </Typography>
+                            <Box sx={{ p: 3, backgroundColor: '#f8fafc', borderTop: '1px solid #e2e8f0' }}>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                <PersonIcon sx={{ fontSize: 20, color: '#4361ee' }} />
+                                <Typography variant="body1" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                                  Student Results ({students[viva._id]?.data?.length || 0})
+                                </Typography>
+                              </Box>
 
                               {students[viva._id]?.data?.length > 0 ? (
-                                <TableContainer component={Paper} elevation={0}>
+                                <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0', mb: 3 }}>
                                   <Table size="small">
                                     <TableHead>
-                                      <TableRow>
-                                        <TableCell>Student</TableCell>
-                                        <TableCell align="center">Questions</TableCell>
-                                        <TableCell align="center">Attempted</TableCell>
-                                        <TableCell align="center">Date/Time</TableCell>
-                                        <TableCell align="center">Score</TableCell>
-                                        <TableCell align="center">Actions</TableCell>
+                                      <TableRow sx={{ backgroundColor: '#fff' }}>
+                                        <TableCell sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Student</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Questions</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Attempted</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Date</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Score</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Actions</TableCell>
                                       </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                      {students[viva._id].data.map((student) => (
-                                        <TableRow key={student._id} hover>
+                                      {students[viva._id].data.map((student) => {
+                                        const score = getFinalScore(student);
+                                        return (
+                                        <TableRow key={student._id} hover sx={{ '&:hover': { backgroundColor: '#fafbfc' } }}>
                                           <TableCell>
                                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                                              <Avatar sx={{ width: 32, height: 32 }}>
-                                                <PersonIcon fontSize="small" />
+                                              <Avatar sx={{ width: 30, height: 30, fontSize: 12, backgroundColor: '#eef2ff', color: '#4361ee' }}>
+                                                {student.studentName?.[0]?.toUpperCase() || 'S'}
                                               </Avatar>
-                                              <Typography style={{fontFamily:'Montserrat-Regular'}} >{student.studentName}</Typography>
+                                              <Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>{student.studentName}</Typography>
                                             </Box>
                                           </TableCell>
-                                          <TableCell align="center">{student.totalQuestions}</TableCell>
-                                          <TableCell align="center">{student.questionAnswerSet.length}</TableCell>
+                                          <TableCell align="center"><Typography variant="body2" sx={{ color: '#64748b' }}>{student.totalQuestions}</Typography></TableCell>
+                                          <TableCell align="center"><Typography variant="body2" sx={{ color: '#64748b' }}>{student.questionAnswerSet.length}</Typography></TableCell>
+                                          <TableCell align="center"><Typography variant="body2" sx={{ color: '#64748b', fontSize: '0.78rem' }}>{new Date(student.dateOfViva).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Typography></TableCell>
                                           <TableCell align="center">
-                                            {new Date(student.dateOfViva).toLocaleString()}
+                                            <Chip label={formatScore(score)} size="small"
+                                              sx={{ fontWeight: 600, backgroundColor: score >= 7 ? '#ecfdf5' : score >= 4 ? '#fffbeb' : '#fef2f2', color: score >= 7 ? '#059669' : score >= 4 ? '#d97706' : '#dc2626', border: `1px solid ${score >= 7 ? '#a7f3d0' : score >= 4 ? '#fde68a' : '#fecaca'}` }} />
                                           </TableCell>
                                           <TableCell align="center">
-                                            <Chip 
-                                              label={formatScore(getFinalScore(student))} 
-                                              style={{backgroundColor:'#C89365',color:'white'}}
-                                              size="small"
-                                            />
-                                          </TableCell>
-                                          <TableCell align="center">
-                                            <Button
-                                              variant="outlined"
-                                              startIcon={<DescriptionIcon />}
-                                              onClick={() => {
-                                                setSelectedStudent(student);
-                                                setIsStudentModalOpen(true);
-                                              }}
-                                              size="small"
-                                              
-                                              style={{color:'#C89365',borderColor:'#C89365',fontFamily:'Montserrat-Regular'}}
-                                            >
-                                              Details
+                                            <Button variant="outlined" size="small" startIcon={<DescriptionIcon sx={{ fontSize: 14 }} />}
+                                              onClick={() => { setSelectedStudent(student); setIsStudentModalOpen(true); }}
+                                              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', borderColor: '#c7d2fe', color: '#4361ee', '&:hover': { borderColor: '#4361ee', backgroundColor: '#eef2ff' } }}>
+                                              Preview
                                             </Button>
                                           </TableCell>
                                         </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </TableContainer>
-                              ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  No students have taken this viva yet.
-                                </Typography>
-                              )}
-
-                              <Divider sx={{ my: 3 }} />
-
-                              <Typography variant="h6" gutterBottom sx={{ mb: 2 }}>
-                                Resume Submissions: {resumeSubmissions[viva._id]?.length || 0}
-                              </Typography>
-
-                              {resumeSubmissions[viva._id]?.length > 0 ? (
-                                <TableContainer component={Paper} elevation={0}>
-                                  <Table size="small">
-                                    <TableHead>
-                                      <TableRow>
-                                        <TableCell>Student</TableCell>
-                                        <TableCell>Resume</TableCell>
-                                        <TableCell align="center">Easy</TableCell>
-                                        <TableCell align="center">Medium</TableCell>
-                                        <TableCell align="center">Hard</TableCell>
-                                        <TableCell align="center">Prepared</TableCell>
-                                        <TableCell align="center">Actions</TableCell>
-                                      </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                      {resumeSubmissions[viva._id].map((submission) => {
-                                        const easy = (submission.questionAnswerSet || []).filter((q) => q.difficulty === 'easy').length
-                                        const medium = (submission.questionAnswerSet || []).filter((q) => q.difficulty === 'medium').length
-                                        const hard = (submission.questionAnswerSet || []).filter((q) => q.difficulty === 'hard').length
-
-                                        return (
-                                          <TableRow key={submission._id || submission.studentId} hover>
-                                            <TableCell>{submission.studentName || submission.studentId}</TableCell>
-                                            <TableCell>
-                                              <Button
-                                                variant="text"
-                                                component="a"
-                                                href={`${API}${submission.resumeUrl}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                size="small"
-                                              >
-                                                View Resume
-                                              </Button>
-                                            </TableCell>
-                                            <TableCell align="center">{easy}</TableCell>
-                                            <TableCell align="center">{medium}</TableCell>
-                                            <TableCell align="center">{hard}</TableCell>
-                                            <TableCell align="center">
-                                              <Chip
-                                                label={submission.preparedByTeacher ? 'Yes' : 'No'}
-                                                color={submission.preparedByTeacher ? 'success' : 'default'}
-                                                size="small"
-                                              />
-                                            </TableCell>
-                                            <TableCell align="center">
-                                              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
-                                                <Button
-                                                  size="small"
-                                                  variant="outlined"
-                                                  startIcon={<AutoDraftIcon fontSize="small" />}
-                                                  onClick={() => handleGenerateDraft(viva._id, submission.studentId)}
-                                                >
-                                                  AI Draft
-                                                </Button>
-                                                <Button
-                                                  size="small"
-                                                  variant="contained"
-                                                  onClick={() => openQuestionEditor(viva._id, submission)}
-                                                >
-                                                  Edit 3/3/3
-                                                </Button>
-                                              </Box>
-                                            </TableCell>
-                                          </TableRow>
-                                        )
+                                        );
                                       })}
                                     </TableBody>
                                   </Table>
                                 </TableContainer>
                               ) : (
-                                <Typography variant="body2" color="text.secondary">
-                                  No resume uploaded yet by students.
+                                <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid #e2e8f0', textAlign: 'center', mb: 3, boxShadow: 'none' }}>
+                                  <Typography variant="body2" sx={{ color: '#94a3b8' }}>No students have taken this viva yet.</Typography>
+                                </Paper>
+                              )}
+
+                              <Divider sx={{ my: 2 }} />
+
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                                <DescriptionIcon sx={{ fontSize: 20, color: '#6366f1' }} />
+                                <Typography variant="body1" sx={{ fontWeight: 700, color: '#1e293b' }}>
+                                  Resume Submissions ({resumeSubmissions[viva._id]?.length || 0})
                                 </Typography>
+                              </Box>
+
+                              {resumeSubmissions[viva._id]?.length > 0 ? (
+                                <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, border: '1px solid #e2e8f0' }}>
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow sx={{ backgroundColor: '#fff' }}>
+                                        <TableCell sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Student</TableCell>
+                                        <TableCell sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Resume</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>E/M/H</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Status</TableCell>
+                                        <TableCell align="center" sx={{ fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>Actions</TableCell>
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {resumeSubmissions[viva._id].map((submission) => {
+                                        const easy = (submission.questionAnswerSet || []).filter((q) => q.difficulty === 'easy').length;
+                                        const medium = (submission.questionAnswerSet || []).filter((q) => q.difficulty === 'medium').length;
+                                        const hard = (submission.questionAnswerSet || []).filter((q) => q.difficulty === 'hard').length;
+                                        return (
+                                          <TableRow key={submission._id || submission.studentId} hover sx={{ '&:hover': { backgroundColor: '#fafbfc' } }}>
+                                            <TableCell><Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>{submission.studentName || submission.studentId}</Typography></TableCell>
+                                            <TableCell>
+                                              {submission.resumeUrl ? (
+                                                <Button variant="text" component="a" href={`${API}${submission.resumeUrl}`} target="_blank" rel="noreferrer" size="small"
+                                                  startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
+                                                  sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', color: '#4361ee' }}>
+                                                  View PDF
+                                                </Button>
+                                              ) : (
+                                                <Typography variant="caption" sx={{ color: '#94a3b8' }}>No resume</Typography>
+                                              )}
+                                            </TableCell>
+                                            <TableCell align="center">
+                                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                                <Chip label={easy} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, backgroundColor: '#ecfdf5', color: '#059669', minWidth: 24 }} />
+                                                <Chip label={medium} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, backgroundColor: '#fffbeb', color: '#d97706', minWidth: 24 }} />
+                                                <Chip label={hard} size="small" sx={{ height: 20, fontSize: '0.65rem', fontWeight: 600, backgroundColor: '#fef2f2', color: '#dc2626', minWidth: 24 }} />
+                                              </Box>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                              <Chip label={submission.preparedByTeacher ? 'Ready' : 'Pending'} size="small"
+                                                sx={{ fontWeight: 600, fontSize: '0.7rem', backgroundColor: submission.preparedByTeacher ? '#ecfdf5' : '#fffbeb', color: submission.preparedByTeacher ? '#059669' : '#d97706', border: `1px solid ${submission.preparedByTeacher ? '#a7f3d0' : '#fde68a'}` }} />
+                                            </TableCell>
+                                            <TableCell align="center">
+                                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', flexWrap: 'wrap' }}>
+                                                <Button size="small" variant="outlined" startIcon={<AutoDraftIcon sx={{ fontSize: 14 }} />}
+                                                  onClick={() => handleGenerateDraft(viva._id, submission.studentId)}
+                                                  sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.7rem', borderColor: '#ddd6fe', color: '#7c3aed', '&:hover': { borderColor: '#7c3aed', backgroundColor: '#f5f3ff' } }}>
+                                                  AI Draft
+                                                </Button>
+                                                <Button size="small" variant="contained" onClick={() => openQuestionEditor(viva._id, submission)}
+                                                  sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.7rem', backgroundColor: '#4361ee', boxShadow: 'none', '&:hover': { backgroundColor: '#3730a3', boxShadow: 'none' } }}>
+                                                  Edit 3/3/3
+                                                </Button>
+                                              </Box>
+                                            </TableCell>
+                                          </TableRow>
+                                        );
+                                      })}
+                                    </TableBody>
+                                  </Table>
+                                </TableContainer>
+                              ) : (
+                                <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid #e2e8f0', textAlign: 'center', boxShadow: 'none' }}>
+                                  <Typography variant="body2" sx={{ color: '#94a3b8' }}>No resume uploaded yet by students.</Typography>
+                                </Paper>
                               )}
                             </Box>
                           </Collapse>
@@ -892,28 +784,18 @@ const AllVivaById = ({ classId }) => {
 
     {/* Empty State */}
     {vivas.length === 0 && (
-      <Box sx={{ 
-        display: 'flex', 
-        flexDirection: 'column', 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        p: 4,
-        textAlign: 'center'
-      }}>
-        <Typography variant="h6" color="text.secondary" gutterBottom>
-          No vivas found for this class
+      <Paper sx={{ p: 6, borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', textAlign: 'center' }}>
+        <Typography variant="h6" sx={{ color: '#64748b', mb: 1 }}>No interviews found</Typography>
+        <Typography variant="body2" sx={{ color: '#94a3b8', mb: 3 }}>
+          {role === 'teacher' ? 'Create your first AI interview to get started' : 'No interviews available yet'}
         </Typography>
         {role === 'teacher' && (
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setIsModalOpen(true)}
-            sx={{ mt: 2 }}
-          >
-            Create Your First Viva
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setIsModalOpen(true)}
+            sx={{ backgroundColor: '#4361ee', borderRadius: 2, textTransform: 'none', fontWeight: 600, boxShadow: 'none', '&:hover': { backgroundColor: '#3730a3', boxShadow: 'none' } }}>
+            Create Your First Interview
           </Button>
         )}
-      </Box>
+      </Paper>
     )}
 
     {/* Modals */}
@@ -1014,14 +896,15 @@ position: 'absolute',
 top: '50%',
 left: '50%',
 transform: 'translate(-50%, -50%)',
-width: '80%',
+width: { xs: '95%', sm: '85%', md: '80%' },
 maxWidth: '1000px',
 bgcolor: 'background.paper',
-boxShadow: 24,
-p: 4,
-borderRadius: 2,
+boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
+p: { xs: 2, md: 4 },
+borderRadius: 3,
 maxHeight: '90vh',
 overflowY: 'auto',
+border: '1px solid #e2e8f0',
 };
 
 export default AllVivaById;

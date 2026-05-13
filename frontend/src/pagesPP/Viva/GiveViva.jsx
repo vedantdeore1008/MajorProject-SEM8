@@ -167,36 +167,88 @@ const Interview = () => {
   };
 
   const startAudioRecording = () => {
-    if (!navigator.mediaDevices?.getUserMedia) return;
-    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      console.error("getUserMedia not available");
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 }
+    }).then((stream) => {
       streamRef.current = stream;
-      const preferredMimeTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
-      const supportedMimeType = preferredMimeTypes.find((t) => { try { return MediaRecorder.isTypeSupported(t); } catch { return false; } });
+      const preferredMimeTypes = [
+        "audio/webm;codecs=opus", "audio/webm",
+        "audio/ogg;codecs=opus", "audio/ogg",
+        "audio/mp4", "audio/mpeg", ""
+      ];
+      let supportedMimeType = null;
+      for (const t of preferredMimeTypes) {
+        try {
+          if (!t || MediaRecorder.isTypeSupported(t)) { supportedMimeType = t || undefined; break; }
+        } catch { /* skip */ }
+      }
       const options = supportedMimeType ? { mimeType: supportedMimeType } : undefined;
-      const mediaRecorder = new MediaRecorder(stream, options);
+      let mediaRecorder;
+      try {
+        mediaRecorder = new MediaRecorder(stream, options);
+      } catch {
+        mediaRecorder = new MediaRecorder(stream);
+      }
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (event) => { if (event.data.size > 0) audioChunksRef.current.push(event.data); };
-      mediaRecorder.start();
-    }).catch((error) => console.error("Error accessing microphone:", error));
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      mediaRecorder.onerror = (e) => console.error("MediaRecorder error:", e);
+      mediaRecorder.start(1000);
+    }).catch((error) => {
+      console.error("Error accessing microphone:", error);
+      setAudioPermission('denied');
+    });
   };
 
   const stopAudioRecording = async () => {
     return new Promise((resolve) => {
-      if (mediaRecorderRef.current?.state === "recording") {
-        mediaRecorderRef.current.onstop = () => {
-          try {
-            const recordedMimeType = mediaRecorderRef.current?.mimeType || audioChunksRef.current?.[0]?.type || "audio/webm";
-            const audioBlob = new Blob(audioChunksRef.current, { type: recordedMimeType });
-            const extension = recordedMimeType.includes("ogg") ? "ogg" : "webm";
-            const file = new File([audioBlob], `recording_${Date.now()}.${extension}`, { type: recordedMimeType });
-            resolve(file);
-            audioChunksRef.current = [];
-          } catch { resolve(null); }
-          if (streamRef.current) { streamRef.current.getTracks().forEach((track) => track.stop()); streamRef.current = null; }
-        };
-        mediaRecorderRef.current.stop();
-      } else { resolve(null); }
+      const recorder = mediaRecorderRef.current;
+      if (!recorder || recorder.state === "inactive") {
+        resolve(null);
+        return;
+      }
+      const finalize = () => {
+        try {
+          if (audioChunksRef.current.length === 0) {
+            console.warn("No audio chunks recorded");
+            resolve(null);
+            return;
+          }
+          const recordedMimeType = recorder.mimeType || audioChunksRef.current[0]?.type || "audio/webm";
+          const audioBlob = new Blob(audioChunksRef.current, { type: recordedMimeType });
+          if (audioBlob.size < 100) {
+            console.warn("Audio blob too small:", audioBlob.size);
+            resolve(null);
+            return;
+          }
+          const extension = recordedMimeType.includes("ogg") ? "ogg" : recordedMimeType.includes("mp4") ? "mp4" : "webm";
+          const file = new File([audioBlob], `recording_${Date.now()}.${extension}`, { type: recordedMimeType });
+          resolve(file);
+        } catch (err) {
+          console.error("Error creating audio file:", err);
+          resolve(null);
+        }
+        audioChunksRef.current = [];
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
+      };
+
+      if (recorder.state === "recording") {
+        recorder.requestData();
+      }
+      recorder.onstop = finalize;
+      try {
+        if (recorder.state !== "inactive") recorder.stop();
+        else finalize();
+      } catch { finalize(); }
     });
   };
 
@@ -303,7 +355,13 @@ const Interview = () => {
     setTimer(0); setLoading(true); setQuestionload(true); setMicOn(false);
     setVivaStatus("processing");
     const audioFile = await stopAudioRecording();
-    if (!audioFile) { setQuestionload(false); if (!isVivaEnded) selectNextQuestion(); return; }
+    if (!audioFile || audioFile.size < 100) {
+      console.warn("No valid audio captured, skipping evaluation");
+      setQHistory((prev) => [...prev, { questionText: c_question, modelAnswer: c_answer, studentAnswer: "No audio captured", evaluation: "Audio not recorded - score not available" }]);
+      setQuestionload(false);
+      if (!isVivaEnded) selectNextQuestion();
+      return;
+    }
     const formData = new FormData();
     formData.append("question", c_question);
     formData.append("modelAnswer", c_answer);
@@ -497,24 +555,30 @@ const Interview = () => {
       <AlertAgreeDisagree open={openDialog} title="End Interview" description="Are you sure you want to end this interview? Your answers so far will be saved and evaluated." confirmText="Yes, End" cancelText="Continue" onConfirm={handleAgree} onCancel={handleDisagree} />
 
       {/* Main Content */}
-      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "380px 1fr" }, gap: 2.5 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "340px 1fr" }, gap: 2, overflow: 'hidden' }}>
         {/* Left: Video */}
-        <Paper sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Paper sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <Box sx={{ p: 1.5, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Box sx={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: started ? '#10b981' : '#94a3b8' }} />
             <Typography variant="caption" sx={{ fontWeight: 600, color: '#64748b' }}>
               {started ? 'Proctoring Active' : 'Camera Feed'}
             </Typography>
+            {started && micOn && (
+              <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#ef4444', animation: 'blink 1s infinite', '@keyframes blink': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.3 } } }} />
+                <Typography variant="caption" sx={{ color: '#ef4444', fontWeight: 600, fontSize: '0.65rem' }}>REC</Typography>
+              </Box>
+            )}
           </Box>
-          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a', minHeight: { xs: 260, md: 340 } }}>
+          <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a', minHeight: { xs: 220, md: 300 }, maxHeight: { xs: 280, md: 360 } }}>
             <Video_analysis endVideo={endVideo} onAnalysisComplete={(report) => { setReport(report); setReportReady(true); finalizeViva(report); }} />
           </Box>
         </Paper>
 
         {/* Right: Question & Controls */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, overflow: 'hidden' }}>
           {/* Question Card */}
-          <Paper sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <Paper sx={{ borderRadius: 3, border: '1px solid #e2e8f0', boxShadow: 'none', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <Box sx={{ p: 2, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Typography variant="body2" sx={{ fontWeight: 600, color: '#1e293b' }}>
                 {started ? `Question ${questionsAsked}` : 'Interview Question'}
@@ -527,7 +591,7 @@ const Interview = () => {
                 />
               )}
             </Box>
-            <Box sx={{ p: 3, flex: 1, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ p: { xs: 2, md: 3 }, flex: 1, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
               {questionload ? (
                 <Box sx={{ width: '100%' }}>
                   <Skeleton animation="wave" height={22} width="90%" sx={{ mb: 1 }} />
@@ -535,7 +599,10 @@ const Interview = () => {
                   <Skeleton animation="wave" height={22} width="60%" />
                 </Box>
               ) : (
-                <Typography variant="body1" sx={{ color: '#1e293b', lineHeight: 1.7, fontSize: { xs: '0.95rem', md: '1.05rem' } }}>
+                <Typography variant="body1" sx={{
+                  color: '#1e293b', lineHeight: 1.7, fontSize: { xs: '0.9rem', md: '1.05rem' },
+                  wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap', width: '100%',
+                }}>
                   {c_question || (teacherQuestionsReady ? "Press Start Interview to begin your AI-powered viva session." : "Upload your resume and wait for the teacher to prepare your questions.")}
                 </Typography>
               )}

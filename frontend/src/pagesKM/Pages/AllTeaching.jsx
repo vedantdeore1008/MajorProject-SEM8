@@ -42,10 +42,12 @@ const AllTeaching = ({ navigate }) => {
     { skip: !userInfo?._id }
   );
 
-  const [joinClass, { isLoading: isJoining }] = useJoinClassMutation();
+  const [joinClass] = useJoinClassMutation();
+  const [joiningClassId, setJoiningClassId] = useState(null);
 
   const handleJoinClass = async (classId = null) => {
     if (!classId && !classCode) { alert('Please enter a class code.'); return; }
+    setJoiningClassId(classId || 'code');
     try {
       const response = await joinClass({ classCode, studentId: userInfo._id, classId }).unwrap();
       alert(response.message);
@@ -54,6 +56,7 @@ const AllTeaching = ({ navigate }) => {
       refetchPublicClasses();
     } catch (error) { alert(error.data?.message || 'Failed to join class.'); }
     setClassCode('');
+    setJoiningClassId(null);
   };
 
   const privateClasses = [...(userClasses?.classes?.filter((c) => !c.isPublic) || [])]
@@ -136,10 +139,10 @@ const AllTeaching = ({ navigate }) => {
         </CardContent>
         {showJoin && (
           <Box sx={{ px: 2.5, pb: 2.5 }}>
-            <Button fullWidth variant="contained" onClick={() => handleJoinClass(classItem._id)} disabled={isJoining} size="small"
-              startIcon={!isJoining && <ArrowForwardIcon sx={{ fontSize: 16 }} />}
+            <Button fullWidth variant="contained" onClick={() => handleJoinClass(classItem._id)} disabled={joiningClassId === classItem._id} size="small"
+              startIcon={joiningClassId !== classItem._id && <ArrowForwardIcon sx={{ fontSize: 16 }} />}
               sx={{ borderRadius: 2.5, textTransform: 'none', fontWeight: 600, py: 1, backgroundColor: accent, boxShadow: 'none', '&:hover': { backgroundColor: `${accent}dd`, boxShadow: `0 4px 12px ${accent}30` } }}>
-              {isJoining ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Join Class'}
+              {joiningClassId === classItem._id ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Join Class'}
             </Button>
           </Box>
         )}
@@ -188,9 +191,9 @@ const AllTeaching = ({ navigate }) => {
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button onClick={() => setIsJoinModalOpen(false)} sx={{ borderRadius: 2, textTransform: 'none', color: '#64748b' }}>Cancel</Button>
-          <Button onClick={() => handleJoinClass()} disabled={isJoining} variant="contained"
+          <Button onClick={() => handleJoinClass()} disabled={!!joiningClassId} variant="contained"
             sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, backgroundColor: '#4361ee', px: 3, boxShadow: 'none', '&:hover': { backgroundColor: '#3730a3', boxShadow: 'none' } }}>
-            {isJoining ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Join'}
+            {joiningClassId === 'code' ? <CircularProgress size={18} sx={{ color: '#fff' }} /> : 'Join'}
           </Button>
         </DialogActions>
       </Dialog>

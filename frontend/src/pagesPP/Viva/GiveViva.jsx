@@ -572,22 +572,23 @@ const Interview = () => {
       setTimeOfThinking(response?.data?.timeofthinking || 0);
       setAskQuestion(total);
       setResumeUploaded(Boolean(resumeStatus.uploaded));
-      setTeacherQuestionsReady(
-        Boolean(resumeStatus.preparedByTeacher) ||
-          Boolean(response?.data?.isPersonalizedQuestionSet),
-      );
+      setTeacherQuestionsReady(Boolean(resumeStatus.preparedByTeacher));
       setAllowedCounts({
         easy: allowedEasy,
         medium: allowedMedium,
         hard: allowedHard,
       });
-      if (response?.data?.isPersonalizedQuestionSet) {
+      if (resumeStatus.preparedByTeacher && response?.data?.isPersonalizedQuestionSet) {
         setResumeMessage(
-          "Your personalized interview questions (from resume) are ready. Click Start to begin.",
+          "Your personalized interview questions are approved by teacher. Click Start to begin.",
+        );
+      } else if (resumeStatus.uploaded && resumeStatus.hasQuestions && !resumeStatus.preparedByTeacher) {
+        setResumeMessage(
+          "Resume scanned and questions generated. Waiting for teacher approval before you can start.",
         );
       } else if (resumeStatus.uploaded && !resumeStatus.hasQuestions) {
         setResumeMessage(
-          "Resume uploaded. Questions are being generated - please wait or ask teacher to click 'AI Draft'.",
+          "Resume uploaded. Questions are being generated - please wait for teacher to review and approve.",
         );
       } else if (!resumeStatus.uploaded) {
         setResumeMessage(
@@ -1539,7 +1540,9 @@ const Interview = () => {
                   {c_question ||
                     (teacherQuestionsReady
                       ? "Press Start Interview to begin your AI-powered viva session."
-                      : "Upload your resume and wait for the teacher to prepare your questions.")}
+                      : resumeUploaded
+                        ? "Waiting for teacher to approve your questions. You cannot start until approved."
+                        : "Upload your resume and wait for the teacher to approve your questions.")}
                 </Typography>
               )}
             </Box>

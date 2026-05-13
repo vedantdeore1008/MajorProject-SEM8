@@ -21,8 +21,8 @@ export const getOneViva = async (req, res) => {
                 (item) => String(item?.studentId) === String(studentId)
             );
 
-            // Use personalized questions if they exist (AI-generated OR teacher-prepared)
-            if (Array.isArray(submission?.questionAnswerSet) && submission.questionAnswerSet.length > 0) {
+            // Only use personalized questions if teacher has approved them
+            if (submission?.preparedByTeacher && Array.isArray(submission?.questionAnswerSet) && submission.questionAnswerSet.length > 0) {
                 responsePayload.questionAnswerSet = submission.questionAnswerSet;
                 responsePayload.numberOfQuestionsToAsk = submission.questionAnswerSet.length;
                 responsePayload.isPersonalizedQuestionSet = true;

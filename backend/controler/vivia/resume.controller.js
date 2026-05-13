@@ -1,9 +1,12 @@
 import fs from "fs";
 import path from "path";
+import { createRequire } from "module";
 import axios from "axios";
-import pdfParse from "pdf-parse";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Viva from "../../model/viva.model.js";
+
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GROQ_API_KEY = process.env.GROQ_API_KEY || "";

@@ -3,7 +3,7 @@ import {
   Typography, Box, Button, Avatar, IconButton, Menu, MenuItem, AppBar, Toolbar,
   Dialog, DialogTitle, DialogContent, DialogActions, TextField, Divider,
   ListItemIcon, ListItemText, Snackbar, Alert, CircularProgress,
-  Drawer, List, ListItemButton, useMediaQuery, useTheme,
+  Drawer, List, ListItemButton, useMediaQuery, useTheme, Collapse,
 } from '@mui/material';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -15,6 +15,9 @@ import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import SchoolIcon from '@mui/icons-material/School';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate as useRouterNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -57,6 +60,7 @@ export default function Main() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [interviewExpanded, setInterviewExpanded] = useState(true);
 
   const router = useDemoRouter('/dashboard');
   const routerNavigate = useRouterNavigate();
@@ -232,13 +236,13 @@ export default function Main() {
 
       {/* Mobile Drawer */}
       <Drawer anchor="left" open={mobileOpen} onClose={() => setMobileOpen(false)}
-        PaperProps={{ sx: { width: 280, borderRadius: '0 16px 16px 0' } }}>
+        PaperProps={{ sx: { width: 300, borderRadius: '0 16px 16px 0', display: 'flex', flexDirection: 'column' } }}>
         <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6" sx={{ fontWeight: 800, color: '#4361ee' }}>Viva<span style={{ color: '#1e293b' }}>AI</span></Typography>
           <IconButton onClick={() => setMobileOpen(false)}><CloseIcon /></IconButton>
         </Box>
         <Divider />
-        <List sx={{ px: 1, pt: 1 }}>
+        <List sx={{ px: 1.5, pt: 1.5, flex: 1, overflowY: 'auto' }}>
           {navItems.map((item) => (
             <ListItemButton key={item.path} onClick={() => handleNavClick(item.action)}
               sx={{ borderRadius: 2, mb: 0.5, backgroundColor: router.pathname === item.path ? '#eef2ff' : 'transparent', color: router.pathname === item.path ? '#4361ee' : '#475569' }}>
@@ -246,11 +250,46 @@ export default function Main() {
               <ListItemText primary={item.label} primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
             </ListItemButton>
           ))}
-          <ListItemButton onClick={() => { setTeachingMenuAnchor(null); setMobileOpen(false); router.navigate('/class'); }}
-            sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
+
+          {/* AI Interview with expandable class list */}
+          <ListItemButton onClick={() => setInterviewExpanded(!interviewExpanded)}
+            sx={{ borderRadius: 2, mb: 0.5, color: router.pathname?.startsWith('/class/') ? '#4361ee' : '#475569', backgroundColor: router.pathname?.startsWith('/class/') ? '#eef2ff' : 'transparent' }}>
             <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><AutoAwesomeIcon /></ListItemIcon>
             <ListItemText primary="AI Interview" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.9rem' }} />
+            {interviewExpanded ? <ExpandLessIcon sx={{ fontSize: 20 }} /> : <ExpandMoreIcon sx={{ fontSize: 20 }} />}
           </ListItemButton>
+
+          <Collapse in={interviewExpanded} timeout="auto">
+            <Box sx={{ pl: 1, pr: 0.5, pb: 1 }}>
+              {data?.classes?.length ? data.classes.map((classItem) => (
+                <ListItemButton key={classItem._id}
+                  onClick={() => { router.navigate(`/class/${classItem._id}`); setMobileOpen(false); }}
+                  sx={{
+                    borderRadius: 2, mb: 0.5, py: 1, pl: 2,
+                    backgroundColor: router.pathname === `/class/${classItem._id}` ? '#f0f4ff' : '#f8fafc',
+                    border: router.pathname === `/class/${classItem._id}` ? '1px solid #c7d2fe' : '1px solid #f1f5f9',
+                    '&:hover': { backgroundColor: '#eef2ff', borderColor: '#c7d2fe' },
+                  }}>
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    <SchoolIcon sx={{ fontSize: 18, color: router.pathname === `/class/${classItem._id}` ? '#4361ee' : '#94a3b8' }} />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={classItem.name}
+                    primaryTypographyProps={{ fontWeight: 500, fontSize: '0.85rem', color: router.pathname === `/class/${classItem._id}` ? '#4361ee' : '#1e293b' }}
+                  />
+                </ListItemButton>
+              )) : (
+                <Box sx={{ px: 2, py: 2, textAlign: 'center' }}>
+                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>No classes yet</Typography>
+                </Box>
+              )}
+              <ListItemButton onClick={() => { router.navigate('/class'); setMobileOpen(false); }}
+                sx={{ borderRadius: 2, py: 0.8, pl: 2, color: '#4361ee', '&:hover': { backgroundColor: '#eef2ff' } }}>
+                <ListItemText primary="View All Classes" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.8rem', color: '#4361ee' }} />
+              </ListItemButton>
+            </Box>
+          </Collapse>
+
           {userInfo?.role === 'student' && (
             <ListItemButton onClick={() => { routerNavigate('/viva-results'); setMobileOpen(false); }} sx={{ borderRadius: 2, mb: 0.5, color: '#475569' }}>
               <ListItemIcon sx={{ minWidth: 36, color: 'inherit' }}><AssessmentIcon /></ListItemIcon>
@@ -258,7 +297,7 @@ export default function Main() {
             </ListItemButton>
           )}
         </List>
-        <Box sx={{ mt: 'auto', p: 2 }}>
+        <Box sx={{ p: 2 }}>
           <Divider sx={{ mb: 2 }} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Avatar src={userInfo?.profile_pic} sx={{ width: 36, height: 36 }} />

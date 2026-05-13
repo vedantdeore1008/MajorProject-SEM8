@@ -561,9 +561,13 @@ const Interview = () => {
         Number(response?.data?.numberOfQuestionsToAsk) ||
         fetchedQuestions.length ||
         0;
-      const allowedHard = Math.max(1, Math.floor(total * 0.2));
-      const allowedEasy = 1;
-      const allowedMedium = Math.max(0, total - allowedEasy - allowedHard);
+
+      // For personalized 3/3/3 sets, ask all questions from each difficulty
+      const isPersonalized = Boolean(response?.data?.isPersonalizedQuestionSet);
+      const allowedEasy = isPersonalized ? easy.length : 1;
+      const allowedMedium = isPersonalized ? medium.length : Math.max(0, total - 1 - Math.max(1, Math.floor(total * 0.2)));
+      const allowedHard = isPersonalized ? hard.length : Math.max(1, Math.floor(total * 0.2));
+
       setQuestionSet(fetchedQuestions);
       setRemainingQuestions(fetchedQuestions);
       setEasyPool(easy);

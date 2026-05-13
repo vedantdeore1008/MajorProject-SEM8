@@ -47,6 +47,7 @@ const getResourceIcon = (type) => {
     case 'documentation': return <SchoolIcon sx={{ fontSize: 20, color: '#10b981' }} />;
     case 'search': return <SearchIcon sx={{ fontSize: 20, color: '#f59e0b' }} />;
     case 'insight': return <LightbulbIcon sx={{ fontSize: 20, color: '#6366f1' }} />;
+    case 'suggestion': return <AutoAwesomeIcon sx={{ fontSize: 20, color: '#8b5cf6' }} />;
     default: return <LinkIcon sx={{ fontSize: 20, color: '#64748b' }} />;
   }
 };
@@ -58,6 +59,7 @@ const getResourceColor = (type) => {
     case 'documentation': return { bg: '#ecfdf5', border: '#a7f3d0', text: '#059669' };
     case 'search': return { bg: '#fffbeb', border: '#fde68a', text: '#d97706' };
     case 'insight': return { bg: '#f5f3ff', border: '#ddd6fe', text: '#7c3aed' };
+    case 'suggestion': return { bg: '#faf5ff', border: '#c4b5fd', text: '#7c3aed' };
     default: return { bg: '#f8fafc', border: '#e2e8f0', text: '#64748b' };
   }
 };
@@ -66,7 +68,138 @@ const getDomainFromUrl = (url) => {
   try { return new URL(url).hostname.replace('www.', ''); } catch { return ''; }
 };
 
+const SuggestionCard = ({ resource, onDelete }) => {
+  const [expanded, setExpanded] = useState(false);
+  const colors = getResourceColor('suggestion');
+  const data = resource.agentData || {};
+
+  return (
+    <Card sx={{ borderRadius: 3, border: `1px solid ${colors.border}`, boxShadow: 'none', overflow: 'hidden', transition: 'all 0.2s', '&:hover': { boxShadow: `0 4px 16px ${colors.border}40` } }}>
+      <CardContent sx={{ p: 2.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+          <Avatar sx={{ width: 40, height: 40, backgroundColor: colors.bg, borderRadius: 2 }}>
+            <AutoAwesomeIcon sx={{ fontSize: 22, color: '#8b5cf6' }} />
+          </Avatar>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="body2" sx={{ fontWeight: 700, color: '#1e293b', mb: 0.3, fontSize: '0.9rem' }}>
+              {resource.title}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+              {resource.vivaName && <Chip label={resource.vivaName} size="small" sx={{ height: 20, fontSize: '0.62rem', backgroundColor: '#f1f5f9', color: '#64748b' }} />}
+              <Chip label="AI Suggestion" size="small" sx={{ height: 20, fontSize: '0.62rem', fontWeight: 600, backgroundColor: colors.bg, color: colors.text, border: `1px solid ${colors.border}` }} />
+            </Box>
+          </Box>
+          <IconButton size="small" onClick={() => onDelete(resource.id)} sx={{ color: '#cbd5e1', '&:hover': { color: '#ef4444' } }}>
+            <DeleteIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+
+        {data.summary && (
+          <Paper sx={{ p: 1.5, mb: 1.5, borderRadius: 2, backgroundColor: '#faf5ff', border: '1px solid #ede9fe' }}>
+            <Typography variant="caption" sx={{ color: '#5b21b6', fontWeight: 600, fontSize: '0.68rem', textTransform: 'uppercase' }}>Assessment</Typography>
+            <Typography variant="body2" sx={{ color: '#4c1d95', fontSize: '0.8rem', lineHeight: 1.5, mt: 0.3 }}>
+              {data.summary}
+            </Typography>
+          </Paper>
+        )}
+
+        {data.strengths?.length > 0 && (
+          <Box sx={{ mb: 1.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, color: '#059669', fontSize: '0.68rem' }}>Strengths:</Typography>
+            {data.strengths.map((s, i) => (
+              <Typography key={i} variant="caption" sx={{ display: 'block', color: '#065f46', fontSize: '0.75rem', pl: 1 }}>• {s}</Typography>
+            ))}
+          </Box>
+        )}
+
+        {!expanded && (data.improvementPlan?.length > 0 || data.resources?.length > 0) && (
+          <Button size="small" fullWidth onClick={() => setExpanded(true)}
+            sx={{ textTransform: 'none', fontSize: '0.75rem', color: '#6366f1', borderRadius: 2, mt: 1, border: '1px dashed #c4b5fd' }}>
+            Show full analysis ({data.improvementPlan?.length || 0} improvements, {data.resources?.length || 0} resources)
+          </Button>
+        )}
+
+        {expanded && (
+          <Box sx={{ mt: 1.5 }}>
+            {data.improvementPlan?.length > 0 && (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#4361ee', fontSize: '0.68rem', textTransform: 'uppercase' }}>Improvement Plan:</Typography>
+                {data.improvementPlan.map((item, idx) => (
+                  <Box key={idx} sx={{ p: 1, mt: 0.5, borderRadius: 1.5, backgroundColor: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.75rem' }}>
+                      {item.priority ? `${item.priority}. ` : ''}{item.topic}
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', color: '#64748b', fontSize: '0.72rem' }}>{item.action}</Typography>
+                    {item.timeEstimate && <Chip label={item.timeEstimate} size="small" sx={{ mt: 0.5, height: 18, fontSize: '0.6rem', backgroundColor: '#eef2ff' }} />}
+                  </Box>
+                ))}
+              </Box>
+            )}
+
+            {data.weeklyPlan && (
+              <Box sx={{ mb: 1.5 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#7c3aed', fontSize: '0.68rem', textTransform: 'uppercase' }}>Weekly Plan:</Typography>
+                {Object.entries(data.weeklyPlan).map(([week, plan], idx) => (
+                  <Box key={week} sx={{ p: 1, mt: 0.5, borderRadius: 1.5, backgroundColor: '#faf5ff', border: '1px solid #ede9fe' }}>
+                    <Typography variant="caption" sx={{ fontWeight: 600, color: '#5b21b6', fontSize: '0.72rem' }}>Week {idx + 1}: {plan?.focus || week}</Typography>
+                    <Typography variant="caption" sx={{ display: 'block', color: '#6b21a8', fontSize: '0.7rem' }}>{plan?.tasks || plan}</Typography>
+                  </Box>
+                ))}
+              </Box>
+            )}
+
+            {data.resources?.length > 0 && (
+              <Box sx={{ mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#059669', fontSize: '0.68rem', textTransform: 'uppercase' }}>
+                  References & Links ({data.resources.length}):
+                </Typography>
+                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                  {data.resources.map((res, idx) => (
+                    <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.8, borderRadius: 1.5, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                      <LinkIcon sx={{ fontSize: 14, color: '#10b981' }} />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ fontWeight: 600, color: '#1e293b', fontSize: '0.72rem' }} noWrap>{res.title}</Typography>
+                      </Box>
+                      {res.url && (
+                        <IconButton size="small" component="a" href={res.url} target="_blank" rel="noopener" sx={{ color: '#10b981' }}>
+                          <OpenInNewIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      )}
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {data.agentSteps?.length > 0 && (
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600, color: '#94a3b8', fontSize: '0.62rem', textTransform: 'uppercase' }}>Agent Trace:</Typography>
+                {data.agentSteps.slice(0, 6).map((step, idx) => (
+                  <Typography key={idx} variant="caption" sx={{ display: 'block', color: '#94a3b8', fontSize: '0.65rem', pl: 1 }}>
+                    {idx + 1}. {step}
+                  </Typography>
+                ))}
+              </Box>
+            )}
+
+            <Button size="small" fullWidth onClick={() => setExpanded(false)}
+              sx={{ textTransform: 'none', fontSize: '0.72rem', color: '#94a3b8', mt: 1 }}>
+              Collapse
+            </Button>
+          </Box>
+        )}
+
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#cbd5e1', fontSize: '0.65rem' }}>
+          Saved {new Date(resource.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </Typography>
+      </CardContent>
+    </Card>
+  );
+};
+
 const ResourceCard = ({ resource, onDelete }) => {
+  if (resource.type === 'suggestion') return <SuggestionCard resource={resource} onDelete={onDelete} />;
+
   const colors = getResourceColor(resource.type);
   const domain = getDomainFromUrl(resource.url);
   const isVideo = resource.type === 'video' || resource.url?.includes('youtube') || resource.url?.includes('youtu.be');

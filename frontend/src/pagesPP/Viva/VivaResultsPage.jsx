@@ -58,17 +58,39 @@ const setCachedAnalysis = (resultId, data) => {
   } catch {}
 };
 
-const SaveAllButton = ({ resources, vivaName, insights }) => {
+const SaveAllButton = ({ resources, vivaName, insights, agentSteps }) => {
   const [saved, setSaved] = useState(false);
   const handleSaveAll = () => {
+    // Save the full AI agent suggestion card with all data
+    saveResource({
+      id: `suggestion-${vivaName}-${Date.now()}`,
+      title: `AI Analysis: ${vivaName}`,
+      type: 'suggestion',
+      vivaName,
+      relevance: insights?.summary || '',
+      agentData: {
+        summary: insights?.summary || '',
+        strengths: insights?.strengths || [],
+        weeklyPlan: insights?.weeklyPlan || null,
+        improvementPlan: insights?.improvementPlan || [],
+        questionInsights: insights?.questionInsights || [],
+        resources: (resources || []).map(r => ({ title: r.title, url: r.url, type: r.type, relevance: r.relevance })),
+        agentSteps: (agentSteps || []).map(s => s.text || ''),
+      }
+    });
+
+    // Also save individual resources with links
     (resources || []).forEach((res, idx) => {
       saveResource({ id: `res-${vivaName}-${idx}-${res.title?.substring(0, 10)}`, title: res.title, url: res.url, type: res.type || 'article', relevance: res.relevance, vivaName });
     });
+
+    // Save improvement plan items
     if (insights?.improvementPlan) {
       insights.improvementPlan.forEach((item, idx) => {
         saveResource({ id: `plan-${vivaName}-${idx}`, title: item.topic, type: 'insight', relevance: item.action, vivaName });
       });
     }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
@@ -646,7 +668,7 @@ IMPORTANT: Provide insights for ALL ${questions.length} questions. Include 6-10 
                       sx={{ height: 18, fontSize: '0.58rem', fontWeight: 600, backgroundColor: '#ecfdf5', color: '#059669', border: '1px solid #a7f3d0' }} />
                   )}
                 </Box>
-                <SaveAllButton resources={insights.resources} vivaName={result.vivaId?.vivaname} insights={insights} />
+                <SaveAllButton resources={insights.resources} vivaName={result.vivaId?.vivaname} insights={insights} agentSteps={steps} />
               </Box>
               <Stack spacing={1}>
                 {insights.resources.map((res, idx) => {

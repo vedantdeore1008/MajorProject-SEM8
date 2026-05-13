@@ -1,9 +1,11 @@
 import fs from "fs";
 import path from "path";
+import axios from "axios";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Viva from "../../model/viva.model.js";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 
 const normalizeQuestionSet = (questionAnswerSet = []) => {
   return questionAnswerSet
@@ -33,61 +35,100 @@ const validateThreeThreeThree = (questionAnswerSet = []) => {
 
 const buildResumeUrl = (filename) => `/uploads/${filename}`;
 
-const generateThreeThreeThreeFromResume = async (resumePath) => {
-  if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY is not configured");
-  }
-
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-  const pdfBytes = fs.readFileSync(resumePath);
-
-  const prompt = `You are preparing technical viva interview questions based on a student's resume.
+const RESUME_PROMPT = `You are preparing technical viva interview questions based on a student's resume.
 Generate exactly 9 questions with model answers:
-- 3 easy
-- 3 medium
-- 3 hard
+- 3 easy (basic concepts from their skills/technologies)
+- 3 medium (applied knowledge from their projects/experience)
+- 3 hard (deep technical questions about their work)
 
 Use only the information inferable from the resume skills/projects/experience.
-Return ONLY valid JSON in this exact format:
-{
-  "questions": [
-    {
-      "difficulty": "easy|medium|hard",
-      "questionText": "...",
-      "answer": "..."
-    }
-  ]
-}`;
+Return ONLY valid JSON in this exact format (no markdown, no code blocks):
+{"questions": [{"difficulty": "easy", "questionText": "...", "answer": "..."}, ...]}`;
 
-  const result = await model.generateContent([
-    prompt,
-    {
-      inlineData: {
-        mimeType: "application/pdf",
-        data: pdfBytes.toString("base64"),
-      },
-    },
-  ]);
-
-  const rawText = String(result?.response?.text?.() || "").trim();
-  const cleaned = rawText.replace(/^```json\s*/i, "").replace(/^```/i, "").replace(/```$/i, "").trim();
-
+const parseAIQuestions = (rawText) => {
+  const cleaned = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
   let parsed;
   try {
     parsed = JSON.parse(cleaned);
   } catch {
-    throw new Error("AI response was not valid JSON");
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+    else throw new Error("AI response was not valid JSON");
+  }
+  return normalizeQuestionSet(parsed?.questions || []);
+};
+
+const generateWithGemini = async (resumePath) => {
+  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  const pdfBytes = fs.readFileSync(resumePath);
+
+  const result = await model.generateContent([
+    RESUME_PROMPT,
+    { inlineData: { mimeType: "application/pdf", data: pdfBytes.toString("base64") } },
+  ]);
+
+  return parseAIQuestions(String(result?.response?.text?.() || ""));
+};
+
+const generateWithGroq = async (resumePath) => {
+  if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not configured");
+
+  // Extract text content from PDF for Groq (since Groq doesn't support PDF directly)
+  const pdfBytes = fs.readFileSync(resumePath);
+  const pdfText = pdfBytes.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s+/g, " ").trim();
+  // Use first 3000 chars of readable text
+  const resumeContent = pdfText.substring(0, 3000);
+
+  const response = await axios.post(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      model: "llama-3.3-70b-versatile",
+      messages: [{
+        role: "user",
+        content: `${RESUME_PROMPT}\n\nHere is the resume content:\n${resumeContent}`
+      }],
+      temperature: 0.4,
+      max_tokens: 2000,
+    },
+    { headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
+  );
+
+  const content = response.data?.choices?.[0]?.message?.content || "";
+  return parseAIQuestions(content);
+};
+
+const generateThreeThreeThreeFromResume = async (resumePath) => {
+  let lastError = null;
+
+  // Try Gemini first
+  if (GEMINI_API_KEY) {
+    try {
+      const questions = await generateWithGemini(resumePath);
+      const { valid } = validateThreeThreeThree(questions);
+      if (valid) return questions;
+      lastError = new Error("Gemini did not return valid 3/3/3 set");
+    } catch (err) {
+      console.warn("[resume-questions] Gemini failed:", err?.message);
+      lastError = err;
+    }
   }
 
-  const questionAnswerSet = normalizeQuestionSet(parsed?.questions || []);
-  const { valid } = validateThreeThreeThree(questionAnswerSet);
-
-  if (!valid) {
-    throw new Error("AI did not return exactly 3 easy, 3 medium and 3 hard questions");
+  // Fallback to Groq
+  if (GROQ_API_KEY) {
+    try {
+      console.log("[resume-questions] Trying Groq fallback...");
+      const questions = await generateWithGroq(resumePath);
+      const { valid } = validateThreeThreeThree(questions);
+      if (valid) return questions;
+      lastError = new Error("Groq did not return valid 3/3/3 set");
+    } catch (err) {
+      console.error("[resume-questions] Groq also failed:", err?.message);
+      lastError = err;
+    }
   }
 
-  return questionAnswerSet;
+  throw lastError || new Error("No AI provider available for question generation");
 };
 
 export const uploadStudentResume = async (req, res) => {

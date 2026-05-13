@@ -21,7 +21,8 @@ export const getOneViva = async (req, res) => {
                 (item) => String(item?.studentId) === String(studentId)
             );
 
-            if (submission?.preparedByTeacher && Array.isArray(submission.questionAnswerSet) && submission.questionAnswerSet.length > 0) {
+            // Use personalized questions if they exist (AI-generated OR teacher-prepared)
+            if (Array.isArray(submission?.questionAnswerSet) && submission.questionAnswerSet.length > 0) {
                 responsePayload.questionAnswerSet = submission.questionAnswerSet;
                 responsePayload.numberOfQuestionsToAsk = submission.questionAnswerSet.length;
                 responsePayload.isPersonalizedQuestionSet = true;
@@ -32,6 +33,7 @@ export const getOneViva = async (req, res) => {
             responsePayload.studentResumeStatus = {
                 uploaded: Boolean(submission),
                 preparedByTeacher: Boolean(submission?.preparedByTeacher),
+                hasQuestions: Boolean(submission?.questionAnswerSet?.length > 0),
                 questionCount: submission?.questionAnswerSet?.length || 0,
                 resumeFileName: submission?.resumeFileName || "",
             };

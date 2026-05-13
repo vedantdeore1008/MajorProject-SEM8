@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import axios from "axios";
+import pdfParse from "pdf-parse";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Viva from "../../model/viva.model.js";
 
@@ -58,38 +59,65 @@ const parseAIQuestions = (rawText) => {
   return normalizeQuestionSet(parsed?.questions || []);
 };
 
+const extractPdfText = async (resumePath) => {
+  const pdfBuffer = fs.readFileSync(resumePath);
+  const data = await pdfParse(pdfBuffer);
+  return data.text || "";
+};
+
 const generateWithGemini = async (resumePath) => {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
   const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
   const pdfBytes = fs.readFileSync(resumePath);
 
-  const result = await model.generateContent([
-    RESUME_PROMPT,
-    { inlineData: { mimeType: "application/pdf", data: pdfBytes.toString("base64") } },
-  ]);
+  // Try with inline PDF first
+  try {
+    const result = await model.generateContent([
+      RESUME_PROMPT,
+      { inlineData: { mimeType: "application/pdf", data: pdfBytes.toString("base64") } },
+    ]);
+    return parseAIQuestions(String(result?.response?.text?.() || ""));
+  } catch (pdfErr) {
+    console.warn("[resume-questions] Gemini PDF inline failed, trying with extracted text:", pdfErr?.message);
+  }
 
+  // Fallback: extract text and send as plain text to Gemini
+  const resumeText = await extractPdfText(resumePath);
+  if (!resumeText || resumeText.trim().length < 30) {
+    throw new Error("Could not extract text from resume for Gemini text fallback");
+  }
+
+  const result = await model.generateContent(
+    `${RESUME_PROMPT}\n\n--- STUDENT RESUME ---\n${resumeText.substring(0, 5000)}\n--- END RESUME ---`
+  );
   return parseAIQuestions(String(result?.response?.text?.() || ""));
 };
 
 const generateWithGroq = async (resumePath) => {
   if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY not configured");
 
-  // Extract text content from PDF for Groq (since Groq doesn't support PDF directly)
-  const pdfBytes = fs.readFileSync(resumePath);
-  const pdfText = pdfBytes.toString("utf-8").replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s+/g, " ").trim();
-  // Use first 3000 chars of readable text
-  const resumeContent = pdfText.substring(0, 3000);
+  const resumeText = await extractPdfText(resumePath);
+  if (!resumeText || resumeText.trim().length < 30) {
+    throw new Error("Could not extract meaningful text from resume PDF");
+  }
+
+  // Send up to 4000 chars of actual resume text
+  const resumeContent = resumeText.substring(0, 4000);
+  console.log("[resume-questions] Extracted PDF text length:", resumeText.length, "| Sending:", resumeContent.length);
 
   const response = await axios.post(
     "https://api.groq.com/openai/v1/chat/completions",
     {
       model: "llama-3.3-70b-versatile",
       messages: [{
+        role: "system",
+        content: "You generate technical viva interview questions strictly based on the resume provided. Questions MUST relate to the skills, projects, technologies, and experience mentioned in the resume. Return ONLY valid JSON."
+      }, {
         role: "user",
-        content: `${RESUME_PROMPT}\n\nHere is the resume content:\n${resumeContent}`
+        content: `${RESUME_PROMPT}\n\n--- STUDENT RESUME ---\n${resumeContent}\n--- END RESUME ---`
       }],
-      temperature: 0.4,
-      max_tokens: 2000,
+      temperature: 0.3,
+      max_tokens: 3000,
     },
     { headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
   );

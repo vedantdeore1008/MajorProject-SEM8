@@ -559,15 +559,14 @@ const Interview = () => {
         }
       }
     } catch (error) {
-      const errorPayload = error?.response?.data;
-      const errorText = typeof errorPayload?.details === "string" && errorPayload.details.trim().length ? errorPayload.details : typeof errorPayload?.error === "string" && errorPayload.error.trim().length ? errorPayload.error : error?.message || "Unknown error";
-      setQHistory((prev) => [...prev, { questionText: c_question, modelAnswer: c_answer, studentAnswer: `ERROR: ${errorText}`, evaluation: `ERROR: ${errorText}` }]);
-      const current = currentDifficulty || 'easy';
-      setAttemptsPerDifficulty((prev) => ({ ...prev, [current]: (prev[current] || 0) + 1 }));
-      const attempts = attemptsPerDifficulty[current] || 0;
-      if (attempts + 1 >= 1) {
-        if (current === 'easy' && allowedCounts.medium > 0) setCurrentDifficulty('medium');
-        else if (current === 'medium' && allowedCounts.hard > 0) setCurrentDifficulty('hard');
+      console.error("API call failed:", error?.message);
+      // Check if the response actually has data (backend returns 200 with error info)
+      const responseData = error?.response?.data;
+      if (responseData?.evaluation) {
+        setQHistory((prev) => [...prev, { questionText: c_question, modelAnswer: c_answer, studentAnswer: responseData?.transcript || "Error processing", evaluation: responseData.evaluation }]);
+      } else {
+        // Network error or complete failure - record but continue interview
+        setQHistory((prev) => [...prev, { questionText: c_question, modelAnswer: c_answer, studentAnswer: "(Network error - answer recorded but not evaluated)", evaluation: { Relevance: 0, Completeness: 0, Accuracy: 0, DepthOfKnowledge: 0, TotalAverageScore: 0, rawText: "Network error during evaluation" } }]);
       }
     } finally {
       if (!isVivaEnded) selectNextQuestion();

@@ -18,12 +18,54 @@ if (GEMINI_API_KEY) {
 
 if (!GEMINI_API_KEY) {
   console.error("GEMINI_API_KEY is not defined in the environment variables.");
-  process.exit(1); // Exit the process if the API key is missing
+  process.exit(1);
 }
+
+// Groq API Key (backup when Gemini hits rate limits) - set GROQ_API_KEY in env vars
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 
 // Initialize the Google Generative AI client
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+// Groq fallback evaluation function
+const evaluateWithGroq = async (question, modelAnswer, userTranscript) => {
+  const prompt = `You are a scoring assistant. Evaluate the user's answer based on the following parameters.
+Return ONLY valid JSON with this exact format (no markdown, no code blocks):
+{"Relevance": X, "Completeness": X, "Accuracy": X, "DepthOfKnowledge": X, "TotalAverageScore": X}
+where X is a number from 0 to 10.
+
+Question: ${question}
+Model Answer: ${modelAnswer}
+User Answer: ${userTranscript}`;
+
+  const response = await axios.post(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      model: "llama-3.3-70b-versatile",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 200,
+    },
+    {
+      headers: {
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  const content = response.data?.choices?.[0]?.message?.content || "";
+  console.log("[viva/groq-fallback] response:", content.slice(0, 200));
+
+  let parsedEval;
+  try {
+    const jsonMatch = content.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) parsedEval = JSON.parse(jsonMatch[0]);
+  } catch {}
+
+  return parsedEval || content;
+};
 
 // Controller function for handling the Gemini API call
 export const callgeminiapi = async (req, res) => {
@@ -97,41 +139,75 @@ export const callgeminiapi = async (req, res) => {
       });
     }
 
-    // Evaluate the transcript
-    const prompt = `
-      You are a human scoring assistant. Evaluate the user's answer based on the following parameters.
-      Return ONLY valid JSON with this exact format (no markdown, no code blocks):
-      {"Relevance": X, "Completeness": X, "Accuracy": X, "DepthOfKnowledge": X, "TotalAverageScore": X}
-      where X is a number from 0 to 10.
+    // Evaluate the transcript — try Gemini first, fall back to Groq
+    let evaluationResult = null;
+    let usedProvider = "gemini";
 
-      Question: ${question}
-      Model Answer: ${modelAnswer}
-      User Answer: ${userTranscript}
-    `;
-
-    const evaluationResponse = await model.generateContent([prompt]);
-    let evaluationResult = evaluationResponse.response.text();
-
-    console.log("[viva/send-to-gemini] evaluation:", evaluationResult.slice(0, 200));
-
-    // Try to parse as JSON for structured response
-    let parsedEval;
     try {
-      const jsonMatch = evaluationResult.match(/\{[\s\S]*?\}/);
-      if (jsonMatch) {
-        parsedEval = JSON.parse(jsonMatch[0]);
+      const prompt = `
+        You are a human scoring assistant. Evaluate the user's answer based on the following parameters.
+        Return ONLY valid JSON with this exact format (no markdown, no code blocks):
+        {"Relevance": X, "Completeness": X, "Accuracy": X, "DepthOfKnowledge": X, "TotalAverageScore": X}
+        where X is a number from 0 to 10.
+
+        Question: ${question}
+        Model Answer: ${modelAnswer}
+        User Answer: ${userTranscript}
+      `;
+
+      const evaluationResponse = await model.generateContent([prompt]);
+      let rawResult = evaluationResponse.response.text();
+      console.log("[viva/send-to-gemini] gemini evaluation:", rawResult.slice(0, 200));
+
+      let parsedEval;
+      try {
+        const jsonMatch = rawResult.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) parsedEval = JSON.parse(jsonMatch[0]);
+      } catch {}
+
+      evaluationResult = parsedEval || rawResult;
+    } catch (geminiError) {
+      console.warn("[viva/send-to-gemini] Gemini failed, switching to Groq backup:", geminiError?.message);
+      usedProvider = "groq";
+
+      try {
+        evaluationResult = await evaluateWithGroq(question, modelAnswer, userTranscript);
+      } catch (groqError) {
+        console.error("[viva/send-to-gemini] Groq also failed:", groqError?.message);
+        // Return a graceful response instead of crashing
+        return res.json({
+          transcript: userTranscript,
+          evaluation: {
+            Relevance: 5,
+            Completeness: 5,
+            Accuracy: 5,
+            DepthOfKnowledge: 5,
+            TotalAverageScore: 5,
+            rawText: "Evaluation service temporarily unavailable. Default score assigned."
+          },
+        });
       }
-    } catch { /* use raw text */ }
+    }
+
+    console.log("[viva/send-to-gemini] final evaluation via:", usedProvider);
 
     res.json({
       transcript: userTranscript,
-      evaluation: parsedEval || evaluationResult,
+      evaluation: evaluationResult,
     });
   } catch (error) {
     console.error("[viva/send-to-gemini] error:", error?.message);
-    res.status(500).json({
-      error: "Failed to fetch response from Gemini API",
-      details: error?.message,
+    // Even on critical error, return a valid response so the interview doesn't break
+    res.json({
+      transcript: "(Error processing answer)",
+      evaluation: {
+        Relevance: 0,
+        Completeness: 0,
+        Accuracy: 0,
+        DepthOfKnowledge: 0,
+        TotalAverageScore: 0,
+        rawText: `Error: ${error?.message || "Unknown error"}`
+      },
     });
   } finally {
     try {

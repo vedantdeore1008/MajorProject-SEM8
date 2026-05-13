@@ -1,56 +1,83 @@
 import VivaResult from "../../model/vivaResult.model.js";
 
 const parseMetric = (text, metricName) => {
-    const pattern = new RegExp(`${metricName}\\s*[:=-]?\\s*(\\d+(?:\\.\\d+)?)`, "i");
-    const match = String(text || "").match(pattern);
-    return match ? parseFloat(match[1]) : null;
+    const str = String(text || "");
+    // Try "MetricName (out of 10): X/10" format (detailed section)
+    const slashRegex = new RegExp(`${metricName}[^:]*:\\s*(?:\\*\\*)?\\s*(\\d+(?:\\.\\d+)?)\\s*/\\s*10`, "gi");
+    const slashMatches = [...str.matchAll(slashRegex)];
+    if (slashMatches.length > 0) return Number(slashMatches[slashMatches.length - 1][1]);
+    // Try "MetricName: X" - prefer LAST non-zero occurrence
+    const regex = new RegExp(`${metricName}[^:]*[:=-]\\s*(?:\\*\\*)?\\s*(\\d+(?:\\.\\d+)?)`, "gi");
+    const matches = [...regex[Symbol.matchAll] ? str.matchAll(regex) : []];
+    if (matches.length > 0) {
+        const nonZero = matches.filter(m => Number(m[1]) > 0);
+        if (nonZero.length > 0) return Number(nonZero[nonZero.length - 1][1]);
+        return Number(matches[matches.length - 1][1]);
+    }
+    return null;
 };
 
 const normalizeEvaluation = (evaluation) => {
     if (evaluation && typeof evaluation === "object" && !Array.isArray(evaluation)) {
-        const relevance = Number(evaluation.Relevance ?? evaluation.relevance);
-        const completeness = Number(evaluation.Completeness ?? evaluation.completeness);
-        const accuracy = Number(evaluation.Accuracy ?? evaluation.accuracy);
+        const relevance = Number(evaluation.Relevance ?? evaluation.relevance ?? 0);
+        const completeness = Number(evaluation.Completeness ?? evaluation.completeness ?? 0);
+        const accuracy = Number(evaluation.Accuracy ?? evaluation.accuracy ?? 0);
         const depthOfKnowledge = Number(
-            evaluation.DepthOfKnowledge ??
-            evaluation.depthOfKnowledge ??
-            evaluation["Depth of Knowledge"]
+            evaluation.DepthOfKnowledge ?? evaluation.depthOfKnowledge ?? evaluation["Depth of Knowledge"] ?? 0
         );
-        const totalAverageScore = Number(
-            evaluation.TotalAverageScore ??
-            evaluation.totalAverageScore ??
-            evaluation.average
+        let totalAverageScore = Number(
+            evaluation.TotalAverageScore ?? evaluation.totalAverageScore ?? evaluation.average ?? 0
         );
 
+        if (!totalAverageScore || totalAverageScore === 0) {
+            const scores = [relevance, completeness, accuracy, depthOfKnowledge].filter(s => s > 0);
+            if (scores.length > 0) totalAverageScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+        }
+
         return {
-            Relevance: Number.isFinite(relevance) ? relevance : null,
-            Completeness: Number.isFinite(completeness) ? completeness : null,
-            Accuracy: Number.isFinite(accuracy) ? accuracy : null,
-            DepthOfKnowledge: Number.isFinite(depthOfKnowledge) ? depthOfKnowledge : null,
-            TotalAverageScore: Number.isFinite(totalAverageScore) ? totalAverageScore : null,
+            Relevance: Number.isFinite(relevance) ? relevance : 0,
+            Completeness: Number.isFinite(completeness) ? completeness : 0,
+            Accuracy: Number.isFinite(accuracy) ? accuracy : 0,
+            DepthOfKnowledge: Number.isFinite(depthOfKnowledge) ? depthOfKnowledge : 0,
+            TotalAverageScore: Number.isFinite(totalAverageScore) ? totalAverageScore : 0,
             rawText: typeof evaluation.rawText === "string" ? evaluation.rawText : "",
         };
     }
 
     const text = String(evaluation || "");
+    if (text.includes("No speech") || text.length < 5) {
+        return { Relevance: 0, Completeness: 0, Accuracy: 0, DepthOfKnowledge: 0, TotalAverageScore: 0, rawText: text };
+    }
+
+    // Try parsing as JSON string
+    try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === "object") return normalizeEvaluation(parsed);
+    } catch {}
+
     const relevance = parseMetric(text, "Relevance");
     const completeness = parseMetric(text, "Completeness");
     const accuracy = parseMetric(text, "Accuracy");
-    const depthOfKnowledge = parseMetric(text, "Depth\\s*of\\s*Knowledge");
+    const depthOfKnowledge = parseMetric(text, "Depth\\s*(?:of\\s*)?Knowledge");
+    let totalAverageScore = parseMetric(text, "Total\\s*Average\\s*(?:Score)?");
 
-    let totalAverageScore = parseMetric(text, "Total\\s*Average\\s*Score\\s*\\(?out\\s*of\\s*10\\)?");
+    // Try "X / 10" format at the end
+    if (!Number.isFinite(totalAverageScore) || totalAverageScore === 0) {
+        const totalMatch = text.match(/Total\s*Average\s*Score[^]*?(\d+(?:\.\d+)?)\s*\/\s*10/i);
+        if (totalMatch && Number(totalMatch[1]) > 0) totalAverageScore = Number(totalMatch[1]);
+    }
 
-    if (!Number.isFinite(totalAverageScore)) {
-        const available = [relevance, completeness, accuracy, depthOfKnowledge].filter((v) => Number.isFinite(v));
-        totalAverageScore = available.length ? available.reduce((a, b) => a + b, 0) / available.length : null;
+    if (!Number.isFinite(totalAverageScore) || totalAverageScore === 0) {
+        const available = [relevance, completeness, accuracy, depthOfKnowledge].filter((v) => Number.isFinite(v) && v > 0);
+        totalAverageScore = available.length ? available.reduce((a, b) => a + b, 0) / available.length : 0;
     }
 
     return {
-        Relevance: Number.isFinite(relevance) ? relevance : null,
-        Completeness: Number.isFinite(completeness) ? completeness : null,
-        Accuracy: Number.isFinite(accuracy) ? accuracy : null,
-        DepthOfKnowledge: Number.isFinite(depthOfKnowledge) ? depthOfKnowledge : null,
-        TotalAverageScore: Number.isFinite(totalAverageScore) ? totalAverageScore : null,
+        Relevance: Number.isFinite(relevance) ? relevance : 0,
+        Completeness: Number.isFinite(completeness) ? completeness : 0,
+        Accuracy: Number.isFinite(accuracy) ? accuracy : 0,
+        DepthOfKnowledge: Number.isFinite(depthOfKnowledge) ? depthOfKnowledge : 0,
+        TotalAverageScore: Number.isFinite(totalAverageScore) ? totalAverageScore : 0,
         rawText: text,
     };
 };
@@ -83,7 +110,7 @@ export const addVivaResult = async (req, res) => {
 
         const attemptedQuestions = normalizedQuestionAnswerSet.filter((q) => {
             const answered = typeof q.studentAnswer === "string" && q.studentAnswer.trim().length > 0 && !q.studentAnswer.trim().startsWith("ERROR:");
-            const hasScore = Number.isFinite(q?.evaluation?.TotalAverageScore);
+            const hasScore = Number.isFinite(q?.evaluation?.TotalAverageScore) && q.evaluation.TotalAverageScore > 0;
             return answered || hasScore;
         });
 
@@ -96,7 +123,9 @@ export const addVivaResult = async (req, res) => {
             }
         });
 
-        const finalScore = attemptedCount > 0 ? Number((totalScore / attemptedCount).toFixed(2)) : 0;
+        // Penalty: divide by total questions (not just attempted) — unattempted questions count as 0
+        const totalQ = Number(totalQuestions || safeQuestionAnswerSet.length || attemptedCount || 1);
+        const finalScore = totalScore > 0 ? Number((totalScore / Math.max(totalQ, attemptedCount)).toFixed(2)) : 0;
         const safeProctoredFeedback = {
             phoneDetectedCount: Number(proctoredFeedback?.phoneDetectedCount || 0),
             laptopDetectedCount: Number(proctoredFeedback?.laptopDetectedCount || 0),

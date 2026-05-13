@@ -742,24 +742,58 @@ IMPORTANT: Provide insights for ALL ${questions.length} questions. Include 6-10 
   );
 };
 
-const parseEvaluation = (evaluation) => {
-  if (evaluation && typeof evaluation === 'object' && !Array.isArray(evaluation)) {
-    return {
-      Relevance: Number.isFinite(Number(evaluation.Relevance ?? evaluation.relevance)) ? Number(evaluation.Relevance ?? evaluation.relevance) : null,
-      Completeness: Number.isFinite(Number(evaluation.Completeness ?? evaluation.completeness)) ? Number(evaluation.Completeness ?? evaluation.completeness) : null,
-      Accuracy: Number.isFinite(Number(evaluation.Accuracy ?? evaluation.accuracy)) ? Number(evaluation.Accuracy ?? evaluation.accuracy) : null,
-      DepthOfKnowledge: Number.isFinite(Number(evaluation.DepthOfKnowledge ?? evaluation.depthOfKnowledge ?? evaluation['Depth of Knowledge'])) ? Number(evaluation.DepthOfKnowledge ?? evaluation.depthOfKnowledge ?? evaluation['Depth of Knowledge']) : null,
-      TotalAverageScore: Number.isFinite(Number(evaluation.TotalAverageScore ?? evaluation.totalAverageScore ?? evaluation.average)) ? Number(evaluation.TotalAverageScore ?? evaluation.totalAverageScore ?? evaluation.average) : null,
-    };
+const parseMetricFromText = (text, metricName) => {
+  // Try "MetricName (out of 10): X/10" format first (detailed evaluation section)
+  const slashRegex = new RegExp(`${metricName}[^:]*:\\s*(?:\\*\\*)?\\s*(\\d+(?:\\.\\d+)?)\\s*/\\s*10`, 'gi');
+  const slashMatches = [...text.matchAll(slashRegex)];
+  if (slashMatches.length > 0) return Number(slashMatches[slashMatches.length - 1][1]);
+  // Try "MetricName: X" - take LAST non-zero or last occurrence
+  const regex = new RegExp(`${metricName}[^:]*[:=-]\\s*(?:\\*\\*)?\\s*(\\d+(?:\\.\\d+)?)`, 'gi');
+  const matches = [...text.matchAll(regex)];
+  if (matches.length > 0) {
+    const nonZero = matches.filter(m => Number(m[1]) > 0);
+    if (nonZero.length > 0) return Number(nonZero[nonZero.length - 1][1]);
+    return Number(matches[matches.length - 1][1]);
   }
+  return null;
+};
+
+const parseEvaluation = (evaluation) => {
+  if (!evaluation) return { Relevance: null, Completeness: null, Accuracy: null, DepthOfKnowledge: null, TotalAverageScore: null };
+
+  if (evaluation && typeof evaluation === 'object' && !Array.isArray(evaluation)) {
+    const relevance = Number(evaluation.Relevance ?? evaluation.relevance ?? 0);
+    const completeness = Number(evaluation.Completeness ?? evaluation.completeness ?? 0);
+    const accuracy = Number(evaluation.Accuracy ?? evaluation.accuracy ?? 0);
+    const depthOfKnowledge = Number(evaluation.DepthOfKnowledge ?? evaluation.depthOfKnowledge ?? evaluation['Depth of Knowledge'] ?? 0);
+    let totalAverageScore = Number(evaluation.TotalAverageScore ?? evaluation.totalAverageScore ?? evaluation.average ?? 0);
+    if (!totalAverageScore) {
+      const scores = [relevance, completeness, accuracy, depthOfKnowledge].filter(s => s > 0);
+      if (scores.length > 0) totalAverageScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    }
+    return { Relevance: relevance, Completeness: completeness, Accuracy: accuracy, DepthOfKnowledge: depthOfKnowledge, TotalAverageScore: totalAverageScore };
+  }
+
   const text = String(evaluation || '');
-  const parseMetric = (metricName) => { const m = text.match(new RegExp(`${metricName}\\s*[:=-]?\\s*(\\d+(?:\\.\\d+)?)`, 'i')); return m ? Number(m[1]) : null; };
-  const relevance = parseMetric('Relevance');
-  const completeness = parseMetric('Completeness');
-  const accuracy = parseMetric('Accuracy');
-  const depthOfKnowledge = parseMetric('Depth\\s*of\\s*Knowledge');
-  const available = [relevance, completeness, accuracy, depthOfKnowledge].filter(v => Number.isFinite(v));
-  const totalAverageScore = parseMetric('Total\\s*Average\\s*Score') || (available.length ? available.reduce((a, b) => a + b, 0) / available.length : null);
+  if (text.includes('No speech') || text.length < 5) return { Relevance: 0, Completeness: 0, Accuracy: 0, DepthOfKnowledge: 0, TotalAverageScore: 0 };
+
+  try { const parsed = JSON.parse(text); if (parsed && typeof parsed === 'object') return parseEvaluation(parsed); } catch {}
+
+  const relevance = parseMetricFromText(text, 'Relevance');
+  const completeness = parseMetricFromText(text, 'Completeness');
+  const accuracy = parseMetricFromText(text, 'Accuracy');
+  const depthOfKnowledge = parseMetricFromText(text, 'Depth\\s*(?:of\\s*)?Knowledge');
+  let totalAverageScore = parseMetricFromText(text, 'Total\\s*Average\\s*(?:Score)?');
+
+  if (!totalAverageScore || totalAverageScore === 0) {
+    const totalMatch = text.match(/Total\s*Average\s*Score[^]*?(\d+(?:\.\d+)?)\s*\/\s*10/i);
+    if (totalMatch && Number(totalMatch[1]) > 0) totalAverageScore = Number(totalMatch[1]);
+  }
+  if (!totalAverageScore || totalAverageScore === 0) {
+    const available = [relevance, completeness, accuracy, depthOfKnowledge].filter(v => Number.isFinite(v) && v > 0);
+    if (available.length > 0) totalAverageScore = available.reduce((a, b) => a + b, 0) / available.length;
+  }
+
   return { Relevance: relevance, Completeness: completeness, Accuracy: accuracy, DepthOfKnowledge: depthOfKnowledge, TotalAverageScore: totalAverageScore };
 };
 

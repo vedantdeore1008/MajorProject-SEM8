@@ -77,9 +77,23 @@ const AllVivaById = ({ classId }) => {
   const role = userInfo?.role;
 
   const parseMetric = (value, metricName) => {
-    const regex = new RegExp(`${metricName}\\s*[:=-]?\\s*(\\d+(?:\\.\\d+)?)`, 'i');
-    const match = String(value || '').match(regex);
-    return match ? Number(match[1]) : null;
+    const text = String(value || '');
+    // Try to find "MetricName (out of 10): X/10" or "MetricName: X/10" format first (detailed evaluation)
+    const slashRegex = new RegExp(`${metricName}[^:]*:\\s*(?:\\*\\*)?\\s*(\\d+(?:\\.\\d+)?)\\s*/\\s*10`, 'gi');
+    const slashMatches = [...text.matchAll(slashRegex)];
+    if (slashMatches.length > 0) {
+      return Number(slashMatches[slashMatches.length - 1][1]);
+    }
+    // Try "MetricName: X" format - take the LAST occurrence (detailed section comes after summary)
+    const regex = new RegExp(`${metricName}[^:]*[:=-]\\s*(?:\\*\\*)?\\s*(\\d+(?:\\.\\d+)?)`, 'gi');
+    const matches = [...text.matchAll(regex)];
+    if (matches.length > 0) {
+      // If there are multiple matches, prefer non-zero ones or use the last one
+      const nonZero = matches.filter(m => Number(m[1]) > 0);
+      if (nonZero.length > 0) return Number(nonZero[nonZero.length - 1][1]);
+      return Number(matches[matches.length - 1][1]);
+    }
+    return null;
   };
 
   const parseEvaluation = (evaluation) => {
@@ -135,9 +149,16 @@ const AllVivaById = ({ classId }) => {
     const depthOfKnowledge = parseMetric(text, 'Depth\\s*(?:of\\s*)?Knowledge');
     let totalAverageScore = parseMetric(text, 'Total\\s*Average\\s*(?:Score)?');
 
-    if (!Number.isFinite(totalAverageScore)) {
-      const available = [relevance, completeness, accuracy, depthOfKnowledge].filter((v) => Number.isFinite(v));
-      totalAverageScore = available.length ? available.reduce((sum, val) => sum + val, 0) / available.length : null;
+    // Also try to find "X / 10" at the end after "Total Average Score"
+    if (!Number.isFinite(totalAverageScore) || totalAverageScore === 0) {
+      const totalMatch = text.match(/Total\s*Average\s*Score[^]*?(\d+(?:\.\d+)?)\s*\/\s*10/i);
+      if (totalMatch && Number(totalMatch[1]) > 0) totalAverageScore = Number(totalMatch[1]);
+    }
+
+    // Calculate from individual scores if still not found
+    if (!Number.isFinite(totalAverageScore) || totalAverageScore === 0) {
+      const available = [relevance, completeness, accuracy, depthOfKnowledge].filter((v) => Number.isFinite(v) && v > 0);
+      if (available.length > 0) totalAverageScore = available.reduce((sum, val) => sum + val, 0) / available.length;
     }
 
     return {
@@ -156,21 +177,26 @@ const AllVivaById = ({ classId }) => {
   };
 
   const getFinalScore = (student) => {
-    // Try parsing each question's evaluation score
+    const totalQuestions = Number(student?.totalQuestions) || 0;
+    const attempted = (student?.questionAnswerSet || []).length;
+
+    // Parse scores from each attempted question
     const parsedScores = (student?.questionAnswerSet || [])
       .map((question) => {
         const eval_ = question?.evaluation;
-        if (!eval_) return null;
+        if (!eval_) return 0;
         const parsed = parseEvaluation(eval_);
         if (parsed?.TotalAverageScore != null && Number.isFinite(parsed.TotalAverageScore)) {
           return parsed.TotalAverageScore;
         }
-        return null;
-      })
-      .filter((value) => value != null && Number.isFinite(value));
+        return 0;
+      });
 
     if (parsedScores.length > 0) {
-      return parsedScores.reduce((sum, value) => sum + value, 0) / parsedScores.length;
+      const attemptedTotal = parsedScores.reduce((sum, value) => sum + value, 0);
+      // Penalty: divide by total questions (not just attempted) so unattempted = 0
+      const divisor = Math.max(totalQuestions, attempted, 1);
+      return attemptedTotal / divisor;
     }
 
     const savedScore = Number(student?.overallMark);

@@ -64,6 +64,7 @@ const AllVivaById = ({ classId }) => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [resumeSubmissions, setResumeSubmissions] = useState({});
+  const [resumePreview, setResumePreview] = useState({ open: false, url: '', name: '' });
   const [questionEditor, setQuestionEditor] = useState({
     open: false,
     vivaId: '',
@@ -82,20 +83,29 @@ const AllVivaById = ({ classId }) => {
   };
 
   const parseEvaluation = (evaluation) => {
+    if (!evaluation) return { Relevance: null, Completeness: null, Accuracy: null, DepthOfKnowledge: null, TotalAverageScore: null, rawText: '' };
+
+    // Handle JSON object directly from backend
     if (evaluation && typeof evaluation === 'object' && !Array.isArray(evaluation)) {
-      const relevance = Number(evaluation.Relevance ?? evaluation.relevance);
-      const completeness = Number(evaluation.Completeness ?? evaluation.completeness);
-      const accuracy = Number(evaluation.Accuracy ?? evaluation.accuracy);
+      const relevance = Number(evaluation.Relevance ?? evaluation.relevance ?? 0);
+      const completeness = Number(evaluation.Completeness ?? evaluation.completeness ?? 0);
+      const accuracy = Number(evaluation.Accuracy ?? evaluation.accuracy ?? 0);
       const depthOfKnowledge = Number(
         evaluation.DepthOfKnowledge ??
         evaluation.depthOfKnowledge ??
-        evaluation['Depth of Knowledge']
+        evaluation['Depth of Knowledge'] ?? 0
       );
-      const totalAverageScore = Number(
+      let totalAverageScore = Number(
         evaluation.TotalAverageScore ??
         evaluation.totalAverageScore ??
-        evaluation.average
+        evaluation.average ?? 0
       );
+
+      // Calculate average if total is 0 but individual scores exist
+      if (!totalAverageScore || totalAverageScore === 0) {
+        const scores = [relevance, completeness, accuracy, depthOfKnowledge].filter(s => s > 0);
+        if (scores.length > 0) totalAverageScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+      }
 
       return {
         Relevance: Number.isFinite(relevance) ? relevance : null,
@@ -103,16 +113,27 @@ const AllVivaById = ({ classId }) => {
         Accuracy: Number.isFinite(accuracy) ? accuracy : null,
         DepthOfKnowledge: Number.isFinite(depthOfKnowledge) ? depthOfKnowledge : null,
         TotalAverageScore: Number.isFinite(totalAverageScore) ? totalAverageScore : null,
-        rawText: typeof evaluation.rawText === 'string' ? evaluation.rawText : '',
+        rawText: typeof evaluation.rawText === 'string' ? evaluation.rawText : JSON.stringify(evaluation),
       };
     }
 
+    // Handle string format
     const text = String(evaluation || '');
+    if (text.includes('No speech') || text.includes('no discernible') || text.length < 5) {
+      return { Relevance: 0, Completeness: 0, Accuracy: 0, DepthOfKnowledge: 0, TotalAverageScore: 0, rawText: text };
+    }
+
+    // Try parsing as JSON string
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed === 'object') return parseEvaluation(parsed);
+    } catch {}
+
     const relevance = parseMetric(text, 'Relevance');
     const completeness = parseMetric(text, 'Completeness');
     const accuracy = parseMetric(text, 'Accuracy');
-    const depthOfKnowledge = parseMetric(text, 'Depth\\s*of\\s*Knowledge');
-    let totalAverageScore = parseMetric(text, 'Total\\s*Average\\s*Score\\s*\\(?out\\s*of\\s*10\\)?');
+    const depthOfKnowledge = parseMetric(text, 'Depth\\s*(?:of\\s*)?Knowledge');
+    let totalAverageScore = parseMetric(text, 'Total\\s*Average\\s*(?:Score)?');
 
     if (!Number.isFinite(totalAverageScore)) {
       const available = [relevance, completeness, accuracy, depthOfKnowledge].filter((v) => Number.isFinite(v));
@@ -135,20 +156,27 @@ const AllVivaById = ({ classId }) => {
   };
 
   const getFinalScore = (student) => {
-    const savedScore = Number(student?.overallMark);
-    if (Number.isFinite(savedScore) && savedScore > 0) {
-      return savedScore;
-    }
-
+    // Try parsing each question's evaluation score
     const parsedScores = (student?.questionAnswerSet || [])
-      .map((question) => parseEvaluation(question?.evaluation)?.TotalAverageScore)
-      .filter((value) => Number.isFinite(value));
+      .map((question) => {
+        const eval_ = question?.evaluation;
+        if (!eval_) return null;
+        const parsed = parseEvaluation(eval_);
+        if (parsed?.TotalAverageScore != null && Number.isFinite(parsed.TotalAverageScore)) {
+          return parsed.TotalAverageScore;
+        }
+        return null;
+      })
+      .filter((value) => value != null && Number.isFinite(value));
 
     if (parsedScores.length > 0) {
       return parsedScores.reduce((sum, value) => sum + value, 0) / parsedScores.length;
     }
 
-    return savedScore;
+    const savedScore = Number(student?.overallMark);
+    if (Number.isFinite(savedScore)) return savedScore;
+
+    return 0;
   };
   // useEffect(() => {
   //   if (userInfo?.role) {
@@ -601,16 +629,21 @@ const AllVivaById = ({ classId }) => {
                       </TableCell>
                       <TableCell align="center">
                         {editMode === viva._id ? (
-                          <TextField size="small" type="date" value={editedData.updatedAt?.split('T')[0] || ''}
-                            onChange={(e) => setEditedData({ ...editedData, updatedAt: e.target.value })}
+                          <TextField size="small" type="date" value={editedData.duedate?.split('T')[0] || editedData.updatedAt?.split('T')[0] || ''}
+                            onChange={(e) => setEditedData({ ...editedData, duedate: e.target.value })}
                             sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
                         ) : (
-                          <Typography variant="body2" sx={{ color: '#64748b' }}>{new Date(viva.updatedAt).toLocaleDateString()}</Typography>
+                          <Typography variant="body2" sx={{ color: '#64748b' }}>{new Date(viva.duedate || viva.updatedAt).toLocaleDateString()}</Typography>
                         )}
                       </TableCell>
                       <TableCell align="center">
-                        <Chip label={viva.status === 'Active' ? 'Active' : 'Inactive'} size="small"
-                          sx={{ fontWeight: 600, backgroundColor: viva.status === 'Active' ? '#ecfdf5' : '#fef2f2', color: viva.status === 'Active' ? '#059669' : '#dc2626', border: `1px solid ${viva.status === 'Active' ? '#a7f3d0' : '#fecaca'}` }} />
+                        {(() => {
+                          const isActive = viva.status === 'Active' || new Date(viva.duedate) > new Date();
+                          return (
+                            <Chip label={isActive ? 'Active' : 'Inactive'} size="small"
+                              sx={{ fontWeight: 600, backgroundColor: isActive ? '#ecfdf5' : '#fef2f2', color: isActive ? '#059669' : '#dc2626', border: `1px solid ${isActive ? '#a7f3d0' : '#fecaca'}` }} />
+                          );
+                        })()}
                       </TableCell>
                       <TableCell align="center">
                         {role === 'student' ? (
@@ -725,7 +758,8 @@ const AllVivaById = ({ classId }) => {
                                             <TableCell><Typography variant="body2" sx={{ fontWeight: 500, color: '#1e293b' }}>{submission.studentName || submission.studentId}</Typography></TableCell>
                                             <TableCell>
                                               {submission.resumeUrl ? (
-                                                <Button variant="text" component="a" href={`${API}${submission.resumeUrl}`} target="_blank" rel="noreferrer" size="small"
+                                                <Button variant="text" size="small"
+                                                  onClick={() => setResumePreview({ open: true, url: `${API}${submission.resumeUrl}`, name: submission.studentName || 'Student' })}
                                                   startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
                                                   sx={{ textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', color: '#4361ee' }}>
                                                   View PDF
@@ -884,6 +918,39 @@ const AllVivaById = ({ classId }) => {
           <Button variant="contained" onClick={saveTeacherQuestionSet}>
             Save 3/3/3 Set
           </Button>
+        </Box>
+      </Box>
+    </Modal>
+
+    {/* Resume Preview Modal */}
+    <Modal open={resumePreview.open} onClose={() => setResumePreview({ open: false, url: '', name: '' })}>
+      <Box sx={{
+        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+        width: { xs: '95%', md: '80%' }, maxWidth: 900, height: '85vh',
+        bgcolor: 'background.paper', borderRadius: 3, boxShadow: '0 25px 50px rgba(0,0,0,0.15)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: '1px solid #e2e8f0' }}>
+          <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
+            Resume — {resumePreview.name}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button variant="outlined" component="a" href={resumePreview.url} target="_blank" rel="noreferrer" size="small"
+              startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
+              sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 600, fontSize: '0.75rem', borderColor: '#e2e8f0', color: '#4361ee' }}>
+              Open in New Tab
+            </Button>
+            <IconButton onClick={() => setResumePreview({ open: false, url: '', name: '' })} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </Box>
+        <Box sx={{ flex: 1, p: 0 }}>
+          <iframe
+            src={resumePreview.url}
+            title="Resume Preview"
+            style={{ width: '100%', height: '100%', border: 'none' }}
+          />
         </Box>
       </Box>
     </Modal>

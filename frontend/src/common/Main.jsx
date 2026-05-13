@@ -45,7 +45,7 @@ function useDemoRouter(initialPath) {
 
 export default function Main() {
   const { userInfo } = useSelector((state) => state.user);
-  const { data } = useGetAllClassesQuery(userInfo?._id, { skip: !userInfo?._id });
+  const { data, isLoading: classesLoading } = useGetAllClassesQuery(userInfo?._id, { skip: !userInfo?._id });
   const dispatch = useDispatch();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -261,11 +261,15 @@ export default function Main() {
 
           <Collapse in={interviewExpanded} timeout="auto">
             <Box sx={{ pl: 1, pr: 0.5, pb: 1 }}>
-              {data?.classes?.length ? data.classes.map((classItem) => (
+              {classesLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <CircularProgress size={20} sx={{ color: '#4361ee' }} />
+                </Box>
+              ) : data?.classes?.length ? data.classes.map((classItem) => (
                 <ListItemButton key={classItem._id}
                   onClick={() => { router.navigate(`/class/${classItem._id}`); setMobileOpen(false); }}
                   sx={{
-                    borderRadius: 2, mb: 0.5, py: 1, pl: 2,
+                    borderRadius: 2, mb: 0.5, py: 1.2, pl: 2,
                     backgroundColor: router.pathname === `/class/${classItem._id}` ? '#f0f4ff' : '#f8fafc',
                     border: router.pathname === `/class/${classItem._id}` ? '1px solid #c7d2fe' : '1px solid #f1f5f9',
                     '&:hover': { backgroundColor: '#eef2ff', borderColor: '#c7d2fe' },
@@ -280,11 +284,11 @@ export default function Main() {
                 </ListItemButton>
               )) : (
                 <Box sx={{ px: 2, py: 2, textAlign: 'center' }}>
-                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>No classes yet</Typography>
+                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>No classes yet. Create or join one.</Typography>
                 </Box>
               )}
               <ListItemButton onClick={() => { router.navigate('/class'); setMobileOpen(false); }}
-                sx={{ borderRadius: 2, py: 0.8, pl: 2, color: '#4361ee', '&:hover': { backgroundColor: '#eef2ff' } }}>
+                sx={{ borderRadius: 2, py: 0.8, pl: 2, mt: 0.5, color: '#4361ee', '&:hover': { backgroundColor: '#eef2ff' } }}>
                 <ListItemText primary="View All Classes" primaryTypographyProps={{ fontWeight: 600, fontSize: '0.8rem', color: '#4361ee' }} />
               </ListItemButton>
             </Box>

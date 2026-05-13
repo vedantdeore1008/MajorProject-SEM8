@@ -73,6 +73,8 @@ const Interview = () => {
   const recognitionRef = useRef(null);
   const transcriptRef = useRef("");
   const isListeningRef = useRef(false);
+  const audioContextRef = useRef(null);
+  const pcmDataRef = useRef([]);
 
   const finalizeViva = (reportData = null) => {
     if (saveAttemptedRef.current) return;
@@ -205,14 +207,44 @@ const Interview = () => {
     } catch { return 0; }
   };
 
+  // Convert PCM float32 samples to 16-bit WAV file
+  const createWavFile = (samples, sampleRate) => {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+    const blockAlign = numChannels * (bitsPerSample / 8);
+    const dataSize = samples.length * (bitsPerSample / 8);
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    const writeString = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      offset += 2;
+    }
+    return new Blob([buffer], { type: 'audio/wav' });
+  };
+
   const startSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn("SpeechRecognition not supported - will use audio file only");
-      return;
-    }
+    if (!SpeechRecognition) return;
 
-    // Stop any existing recognition first
     if (recognitionRef.current) {
       try { recognitionRef.current.abort(); } catch {}
       recognitionRef.current = null;
@@ -243,28 +275,22 @@ const Interview = () => {
       };
 
       recognition.onerror = (event) => {
-        console.warn("SpeechRecognition error:", event.error);
         if (event.error === "not-allowed" || event.error === "service-not-allowed") {
           isListeningRef.current = false;
-          setAudioPermission('denied');
         }
-        // For network/no-speech errors, let onend handle restart
       };
 
       recognition.onend = () => {
-        // Use ref (not state) to avoid stale closure
         if (isListeningRef.current) {
           setTimeout(() => {
             if (isListeningRef.current) {
               try {
-                const newRecog = createRecognition();
-                newRecog.start();
-                recognitionRef.current = newRecog;
-              } catch (e) {
-                console.warn("Failed to restart recognition:", e);
-              }
+                const r = createRecognition();
+                r.start();
+                recognitionRef.current = r;
+              } catch {}
             }
-          }, 100);
+          }, 200);
         }
       };
 
@@ -275,10 +301,7 @@ const Interview = () => {
       const recognition = createRecognition();
       recognition.start();
       recognitionRef.current = recognition;
-    } catch (err) {
-      console.warn("Failed to start SpeechRecognition:", err);
-      isListeningRef.current = false;
-    }
+    } catch {}
   };
 
   const stopSpeechRecognition = () => {
@@ -296,103 +319,101 @@ const Interview = () => {
   const startAudioRecording = () => {
     transcriptRef.current = "";
     setLiveTranscript("");
+    pcmDataRef.current = [];
 
-    // Start speech recognition
     startSpeechRecognition();
 
-    // Also start MediaRecorder as backup
     if (!navigator.mediaDevices?.getUserMedia) return;
     navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 44100,
-        channelCount: 1,
-      }
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }
     }).then((stream) => {
       streamRef.current = stream;
 
-      // Verify audio tracks are active
-      const audioTracks = stream.getAudioTracks();
-      if (audioTracks.length === 0 || !audioTracks[0].enabled) {
-        console.warn("No active audio tracks found");
-      }
+      // Use AudioContext to capture raw PCM (guaranteed to work)
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      audioContextRef.current = audioContext;
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-      const preferredMimeTypes = [
-        "audio/webm;codecs=opus", "audio/webm",
-        "audio/ogg;codecs=opus", "audio/ogg",
-        "audio/mp4", "audio/mpeg", ""
-      ];
-      let supportedMimeType = null;
-      for (const t of preferredMimeTypes) {
-        try {
-          if (!t || MediaRecorder.isTypeSupported(t)) { supportedMimeType = t || undefined; break; }
-        } catch { /* skip */ }
-      }
-      const options = supportedMimeType ? { mimeType: supportedMimeType } : undefined;
-      let mediaRecorder;
-      try {
-        mediaRecorder = new MediaRecorder(stream, options);
-      } catch {
-        mediaRecorder = new MediaRecorder(stream);
-      }
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
+      processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        pcmDataRef.current.push(new Float32Array(inputData));
       };
-      mediaRecorder.onerror = (e) => console.error("MediaRecorder error:", e);
-      mediaRecorder.start(1000);
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      // Also start MediaRecorder as secondary backup
+      try {
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
+        };
+        mediaRecorder.start(1000);
+      } catch {
+        try {
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorderRef.current = mediaRecorder;
+          audioChunksRef.current = [];
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
+          };
+          mediaRecorder.start(1000);
+        } catch {}
+      }
     }).catch((error) => {
       console.error("Error accessing microphone:", error);
     });
   };
 
   const stopAudioRecording = async () => {
-    return new Promise((resolve) => {
-      const recorder = mediaRecorderRef.current;
-      if (!recorder || recorder.state === "inactive") {
-        resolve(null);
-        return;
-      }
-      const finalize = () => {
-        try {
-          if (audioChunksRef.current.length === 0) {
-            console.warn("No audio chunks recorded");
-            resolve(null);
-            return;
-          }
-          const recordedMimeType = recorder.mimeType || audioChunksRef.current[0]?.type || "audio/webm";
-          const audioBlob = new Blob(audioChunksRef.current, { type: recordedMimeType });
-          if (audioBlob.size < 100) {
-            console.warn("Audio blob too small:", audioBlob.size);
-            resolve(null);
-            return;
-          }
-          const extension = recordedMimeType.includes("ogg") ? "ogg" : recordedMimeType.includes("mp4") ? "mp4" : "webm";
-          const file = new File([audioBlob], `recording_${Date.now()}.${extension}`, { type: recordedMimeType });
-          resolve(file);
-        } catch (err) {
-          console.error("Error creating audio file:", err);
-          resolve(null);
-        }
-        audioChunksRef.current = [];
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((track) => track.stop());
-          streamRef.current = null;
-        }
-      };
+    // Stop AudioContext-based recording
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      try { await audioContextRef.current.close(); } catch {}
+    }
+    audioContextRef.current = null;
 
-      if (recorder.state === "recording") {
-        recorder.requestData();
+    // Stop MediaRecorder
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state === "recording") {
+      try { recorder.stop(); } catch {}
+    }
+
+    // Stop stream tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    // Create WAV from PCM data (primary - most reliable)
+    if (pcmDataRef.current.length > 0) {
+      const totalLength = pcmDataRef.current.reduce((acc, chunk) => acc + chunk.length, 0);
+      if (totalLength > 1600) { // At least 100ms of audio at 16kHz
+        const mergedData = new Float32Array(totalLength);
+        let offset = 0;
+        for (const chunk of pcmDataRef.current) {
+          mergedData.set(chunk, offset);
+          offset += chunk.length;
+        }
+        pcmDataRef.current = [];
+        const wavBlob = createWavFile(mergedData, 16000);
+        return new File([wavBlob], `recording_${Date.now()}.wav`, { type: 'audio/wav' });
       }
-      recorder.onstop = finalize;
-      try {
-        if (recorder.state !== "inactive") recorder.stop();
-        else finalize();
-      } catch { finalize(); }
-    });
+    }
+    pcmDataRef.current = [];
+
+    // Fallback: MediaRecorder blob
+    if (audioChunksRef.current.length > 0) {
+      const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      audioChunksRef.current = [];
+      if (blob.size > 100) {
+        return new File([blob], `recording_${Date.now()}.webm`, { type: 'audio/webm' });
+      }
+    }
+
+    return null;
   };
 
   const checkAudioPermission = async () => {

@@ -47,7 +47,11 @@ export const callgeminiapi = async (req, res) => {
       console.log("[viva/send-to-gemini] using client transcript:", userTranscript.slice(0, 200));
     } else if (audioFile && audioFile.size > 500) {
       // Fall back to Gemini audio transcription
-      const audioMimeType = (audioFile.mimetype || "audio/webm").split(";")[0];
+      let audioMimeType = (audioFile.mimetype || "audio/webm").split(";")[0];
+      // Detect WAV from filename if mimetype is generic
+      if (audioFile.originalname && audioFile.originalname.endsWith('.wav')) {
+        audioMimeType = "audio/wav";
+      }
       console.log("[viva/send-to-gemini] using audio file:", {
         originalname: audioFile.originalname,
         mimetype: audioMimeType,
